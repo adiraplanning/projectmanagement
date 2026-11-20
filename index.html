@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestão de Projeto | Projetos</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text x=%2250%22 y=%2255%22 font-size=%2270%22 text-anchor=%22middle%22 dominant-baseline=%22central%22>📅</text></svg>">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { min-height: 100%; font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #222; background: #f4f6f9; }
+button { font-family: inherit; font-size: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; font-size: inherit; }
+
+:root {
+  --navy: #1a2840;
+  --blue: #2b6cb0;
+  --border: #d8dde5;
+  --muted: #6b7280;
+}
+
+/* ---------- Topbar ---------- */
+.topbar {
+  display: flex; align-items: center; gap: 16px;
+  background: #fff; border-bottom: 1px solid var(--border);
+  padding: 12px 18px;
+}
+.logo {
+  width: 92px; height: 24px; flex-shrink: 0;
+  background: url('adira-logo.png') center / 118px auto no-repeat;
+}
+.brand { font-weight: 700; font-size: 15px; color: var(--navy); }
+.brand .sep { color: #8a93a4; font-weight: 400; margin: 0 4px; }
+.topbar .spacer { flex: 1; }
+.user-box { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12.5px; }
+.mode-pill { background: #fefcbf; color: #744210; border: 1px solid #f6e05e; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+
+.btn {
+  background: #fff; border: 1px solid #c8cfd9; color: #2d3748;
+  padding: 7px 13px; border-radius: 4px; font-size: 12.5px;
+}
+.btn:hover { background: #f0f3f8; border-color: #a4adba; }
+.btn.primary { background: var(--blue); color: #fff; border-color: var(--blue); font-weight: 600; }
+.btn.primary:hover { background: #234e83; }
+.btn.danger { color: #c53030; border-color: #f0a4a4; }
+.btn.danger:hover { background: #fff5f5; }
+
+/* ---------- Toolbar ---------- */
+.page { max-width: 1320px; margin: 0 auto; padding: 22px 18px 40px; }
+.page-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.page-head h1 { font-size: 20px; color: var(--navy); }
+.page-head .sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+.page-head .grow { flex: 1; }
+
+.filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.chip {
+  background: #fff; border: 1px solid var(--border); color: #4a5568;
+  padding: 6px 12px; border-radius: 16px; font-size: 12.5px; font-weight: 600;
+}
+.chip .n { color: #8a93a4; font-weight: 400; margin-left: 4px; }
+.chip.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+.chip.active .n { color: #b8c2d3; }
+.filters .grow { flex: 1; }
+.search {
+  padding: 7px 10px; border: 1px solid #c8cfd9; border-radius: 4px; width: 240px; max-width: 100%;
+}
+.search:focus, .field input:focus, .field textarea:focus, .field select:focus {
+  outline: none; border-color: var(--blue); box-shadow: 0 0 0 2px rgba(43,108,176,.15);
+}
+select.sort { padding: 6px 8px; border: 1px solid #c8cfd9; border-radius: 4px; background: #fff; }
+
+/* ---------- Cards ---------- */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.card {
+  background: #fff; border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 16px 12px; cursor: pointer; position: relative;
+  display: flex; flex-direction: column; gap: 10px;
+  transition: box-shadow 120ms, border-color 120ms, transform 80ms;
+  user-select: none;
+}
+.card:hover { border-color: #a9b6c9; box-shadow: 0 4px 14px rgba(26,40,64,.08); }
+.card:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.card.ctx-open { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(43,108,176,.2); }
+.card-top { display: flex; align-items: center; gap: 8px; }
+.card-top .grow { flex: 1; }
+.card-more {
+  border: 0; background: transparent; color: #8a93a4; font-size: 18px; line-height: 1;
+  padding: 0 6px 4px; border-radius: 4px;
+}
+.card-more:hover { background: #f0f3f8; color: var(--navy); }
+.card-name { font-size: 15.5px; font-weight: 700; color: var(--navy); line-height: 1.25; word-break: break-word; }
+.card-client { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.pill { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding: 2px 8px; border-radius: 10px; }
+.pill.ativo { background: #ebf4ff; color: #2b6cb0; }
+.pill.pausado { background: #fffaf0; color: #b7791f; }
+.pill.concluido { background: #f0fff4; color: #2f855a; }
+.pill.arquivado { background: #edf2f7; color: #718096; }
+
+.progress-row { display: flex; align-items: center; gap: 10px; }
+.bar { flex: 1; height: 7px; background: #edf0f5; border-radius: 4px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: #38a169; border-radius: 4px; }
+.pct { font-weight: 700; color: #2d3748; font-size: 12.5px; min-width: 36px; text-align: right; }
+
+.counts { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #edf0f5; border-radius: 6px; overflow: hidden; }
+.counts div { padding: 7px 8px; text-align: center; border-right: 1px solid #edf0f5; }
+.counts div:last-child { border-right: 0; }
+.counts b { display: block; font-size: 16px; color: #2d3748; }
+.counts span { font-size: 11px; color: var(--muted); }
+.counts .unpl b { color: #dd6b20; }
+.counts .done b { color: #2f855a; }
+
+.card-next { font-size: 12px; color: #4a5568; min-height: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-next .lbl { color: var(--muted); }
+.card-foot { font-size: 11.5px; color: #8a93a4; border-top: 1px solid #f0f2f6; padding-top: 8px; display: flex; justify-content: space-between; gap: 8px; }
+
+.empty {
+  background: #fff; border: 1px dashed #c8cfd9; border-radius: 8px;
+  padding: 48px 20px; text-align: center; color: var(--muted);
+}
+.empty b { display: block; color: var(--navy); font-size: 15px; margin-bottom: 6px; }
+.empty .btn { margin-top: 14px; }
+.loading { padding: 40px; text-align: center; color: var(--muted); }
+
+/* ---------- Context menu ---------- */
+.ctx {
+  position: fixed; z-index: 3000; min-width: 220px;
+  background: #fff; border: 1px solid #c8cfd9; border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.16); padding: 4px 0; font-size: 13px;
+}
+.ctx-head { padding: 7px 14px 6px; border-bottom: 1px solid #eef0f4; margin-bottom: 4px; }
+.ctx-head .t { font-weight: 700; color: var(--navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.ctx-head .d { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.ctx button {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: none; border: 0; text-align: left; padding: 7px 14px; color: #2d3748;
+}
+.ctx button:hover { background: #f0f3f8; }
+.ctx button.danger { color: #c53030; }
+.ctx button .k { margin-left: auto; color: #a0a8b4; font-size: 11px; }
+.ctx button.current::after { content: '✓'; margin-left: auto; color: var(--blue); font-weight: 700; }
+.ctx hr { border: 0; border-top: 1px solid #eef0f4; margin: 4px 0; }
+.ctx .sub-label { padding: 6px 14px 2px; font-size: 10.5px; font-weight: 700; color: #8a93a4; text-transform: uppercase; letter-spacing: .5px; }
+
+/* ---------- Modals ---------- */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(26,40,64,.45); z-index: 4000;
+  display: flex; align-items: flex-start; justify-content: center; padding: 60px 16px; overflow: auto;
+}
+.modal-backdrop[hidden] { display: none; }
+.modal { background: #fff; border-radius: 8px; width: 560px; max-width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+.modal-header { display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid #eef0f4; font-weight: 700; font-size: 15px; color: var(--navy); }
+.modal-header .close { margin-left: auto; background: none; border: 0; font-size: 20px; color: #8a93a4; line-height: 1; }
+.modal-body { padding: 16px 18px; }
+.modal-footer { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid #eef0f4; }
+.modal-footer .left { margin-right: auto; }
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 12px; font-weight: 600; color: #4a5568; margin-bottom: 4px; }
+.field input[type=text], .field textarea, .field select { width: 100%; padding: 7px 10px; border: 1px solid #c8cfd9; border-radius: 4px; background: #fff; }
+.field textarea { resize: vertical; }
+.field-row { display: flex; gap: 12px; }
+.field-row .field { flex: 1; }
+.hint { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+
+.props-section { font-size: 11px; font-weight: 700; color: #8a93a4; text-transform: uppercase; letter-spacing: .5px; margin: 16px 0 8px; }
+.props-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.props-table th { text-align: left; font-weight: 400; color: var(--muted); padding: 5px 12px 5px 0; width: 42%; vertical-align: top; }
+.props-table td { padding: 5px 0; color: #2d3748; font-weight: 600; word-break: break-word; }
+.props-table td small { color: #8a93a4; font-weight: 400; }
+.props-table tr + tr th, .props-table tr + tr td { border-top: 1px solid #f2f4f7; }
+.mono { font-family: Consolas, monospace; font-size: 11.5px; font-weight: 400 !important; color: #6b7280 !important; }
+
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: var(--navy); color: #fff; padding: 8px 16px; border-radius: 4px; z-index: 6000;
+  box-shadow: 0 4px 12px rgba(0,0,0,.3); opacity: 0; transition: opacity 150ms; pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .topbar { flex-wrap: wrap; }
+  .user-box .email { display: none; }
+  .search { width: 100%; }
+  .filters .grow { display: none; }
+  .modal-backdrop { padding: 20px 12px; }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo" aria-label="Adira"></div>
+  <div class="brand">Gestão de Projeto</div>
+  <div class="spacer"></div>
+  <div class="user-box">
+    <span class="mode-pill" id="mode-pill" hidden title="js/config.js sem dados do Supabase — os dados ficam só neste browser">Modo local</span>
+  </div>
+</header>
+
+<main class="page" id="page">
+  <div class="page-head">
+    <div>
+      <h1>Projetos</h1>
+      <div class="sub">Cada projeto tem as suas próprias tarefas, por planear e concluídas. Clica para abrir; botão direito para mais opções.</div>
+    </div>
+    <div class="grow"></div>
+    <button class="btn primary" id="btn-new">+ Novo Projeto</button>
+  </div>
+
+  <div class="filters">
+    <div id="chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+    <div class="grow"></div>
+    <select class="sort" id="sort" title="Ordenar">
+      <option value="updated">Última alteração</option>
+      <option value="created">Data de criação</option>
+      <option value="name">Nome</option>
+      <option value="progress">Progresso</option>
+    </select>
+    <input type="search" class="search" id="search" placeholder="Procurar projeto ou cliente…">
+  </div>
+
+  <div id="list"><div class="loading">A carregar projetos…</div></div>
+</main>
+
+<!-- Modal: Novo projeto -->
+<div class="modal-backdrop" id="modal-new" hidden>
+  <div class="modal">
+    <div class="modal-header">Novo Projeto <button class="close" data-close>×</button></div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="np-name">Nome do projeto</label>
+        <input type="text" id="np-name" placeholder="Ex.: P192 — Linha de corte">
+      </div>
+      <div class="field">
+        <label for="np-client">Cliente (opcional)</label>
+        <input type="text" id="np-client">
+      </div>
+      <div class="field">
+        <label for="np-desc">Descrição (opcional)</label>
+        <textarea id="np-desc" rows="2"></textarea>
+      </div>
+      <details style="margin-top:6px;">
+        <summary style="cursor:pointer;font-size:12.5px;color:#2b6cb0;">Migrar dados de um ficheiro de backup antigo (.json)</summary>
+        <div class="field" style="margin-top:10px;">
+          <input type="file" id="np-file" accept="application/json,.json">
+          <div class="hint">Só para trazer projetos da versão antiga (um ficheiro por projeto). Se o nome estiver vazio, usa o nome do ficheiro.</div>
+        </div>
+      </details>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-close>Cancelar</button>
+      <button class="btn primary" id="np-save">Criar projeto</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Propriedades -->
+<div class="modal-backdrop" id="modal-props" hidden>
+  <div class="modal">
+    <div class="modal-header">Propriedades do projeto <button class="close" data-close>×</button></div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="pp-name">Nome</label>
+        <input type="text" id="pp-name">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="pp-client">Cliente</label>
+          <input type="text" id="pp-client">
+        </div>
+        <div class="field">
+          <label for="pp-status">Estado</label>
+          <select id="pp-status">
+            <option value="ativo">Ativo</option>
+            <option value="pausado">Pausado</option>
+            <option value="concluido">Concluído</option>
+            <option value="arquivado">Arquivado</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="pp-desc">Descrição</label>
+        <textarea id="pp-desc" rows="2"></textarea>
+      </div>
+      <div id="pp-info"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn danger left" id="pp-delete">Apagar projeto</button>
+      <button class="btn" data-close>Fechar</button>
+      <button class="btn primary" id="pp-save">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/db.js"></script>
+<script>
+'use strict';
+
+const $ = (s, r = document) => r.querySelector(s);
+const STATUS = {
+  ativo:     { label: 'Ativo',     plural: 'Ativos' },
+  pausado:   { label: 'Pausado',   plural: 'Pausados' },
+  concluido: { label: 'Concluído', plural: 'Concluídos' },
+  arquivado: { label: 'Arquivado', plural: 'Arquivados' }
+};
+const FILTER_KEY = 'gp_dash_filter';
+const SORT_KEY = 'gp_dash_sort';
+
+let projects = [];
+let filter = safeGet(FILTER_KEY) || 'ativo';
+let ctxMenu = null;
+let propsId = null;
+
+function safeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function safeSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.style.opacity = '1';
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.style.opacity = '0', 1800);
+}
+
+/* ---------- Datas ---------- */
+const MONTHS = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const DAYS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+function parseISODate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+function fmtDay(d) { return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`; }
+function fmtDate(d) { return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
+function fmtDateTime(iso) {
+  const d = new Date(iso);
+  return `${fmtDate(d)} às ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function timeAgo(iso) {
+  const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return 'agora mesmo';
+  const m = Math.round(s / 60); if (m < 60) return `há ${m} min`;
+  const h = Math.round(m / 60); if (h < 24) return `há ${h} h`;
+  const d = Math.round(h / 24); if (d < 30) return `há ${d} dia${d > 1 ? 's' : ''}`;
+  return 'em ' + fmtDate(new Date(iso));
+}
+function todayISO() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function fmtHours(slots) {
+  const h = slots / 2;
+  return (Number.isInteger(h) ? h : h.toFixed(1).replace('.', ',')) + ' h';
+}
+
+/* ---------- Estatísticas de um projeto (só desse projeto) ---------- */
+function projectStats(row) {
+  const pieces = (row.data && Array.isArray(row.data.pieces)) ? row.data.pieces : [];
+  const today = todayISO();
+  const unplanned = pieces.filter(p => !p.startDate && !p.completedAt);
+  const completed = pieces.filter(p => p.completedAt);
+  const scheduled = pieces.filter(p => p.startDate && !p.completedAt);
+  const withDate  = pieces.filter(p => p.startDate);
+  const pct = withDate.length ? Math.round(completed.length / withDate.length * 100) : 0;
+
+  const upcoming = scheduled.filter(p => p.startDate >= today).sort((a, b) =>
+    a.startDate.localeCompare(b.startDate) || (a.startSlot || 0) - (b.startSlot || 0));
+  const ongoing = scheduled.filter(p => p.startDate < today);   // já começaram e ainda não estão concluídas
+
+  const plannedDates = pieces.map(p => p.plannedStartDate || p.startDate).filter(Boolean).sort();
+  const plannedSlots = pieces.reduce((s, p) => s + (p.plannedDurationSlots || (!p.startDate ? p.durationSlots : 0) || 0), 0);
+  const realSlots = completed.reduce((s, p) => s + (p.durationSlots || 0), 0);
+  const lastCompleted = completed.map(p => p.completedAt).sort().pop() || null;
+
+  return {
+    total: pieces.length, unplanned: unplanned.length, completed: completed.length,
+    scheduled: scheduled.length, ongoing: ongoing.length, pct,
+    next: upcoming[0] || null,
+    firstDate: plannedDates[0] || null, lastDate: plannedDates[plannedDates.length - 1] || null,
+    plannedSlots, realSlots, lastCompleted,
+    workSaturdays: (row.data && row.data.workSaturdays || []).length,
+    indicative: pieces.filter(p => p.indicative).length
+  };
+}
+
+/* ---------- Lista ---------- */
+async function loadProjects() {
+  try {
+    projects = await DB.listProjects();
+    render();
+  } catch (e) {
+    const noTable = /schema cache|does not exist/i.test(e.message || '');
+    $('#list').innerHTML = `<div class="empty"><b>Não foi possível carregar os projetos</b>${noTable
+      ? 'A tabela ainda não existe no Supabase. Corre o ficheiro <code>supabase/schema.sql</code> no SQL Editor do Supabase e recarrega esta página.'
+      : escapeHtml(e.message)}</div>`;
+  }
+}
+
+function render() {
+  // chips
+  const counts = { todos: projects.length };
+  for (const k of Object.keys(STATUS)) counts[k] = projects.filter(p => p.status === k).length;
+  const chipDefs = [...Object.keys(STATUS).map(k => [k, STATUS[k].plural]), ['todos', 'Todos']];
+  $('#chips').innerHTML = chipDefs.map(([k, l]) =>
+    `<button class="chip ${filter === k ? 'active' : ''}" data-f="${k}">${l}<span class="n">${counts[k]}</span></button>`).join('');
+
+  // filtro + pesquisa + ordenação
+  const q = $('#search').value.trim().toLowerCase();
+  let rows = projects.filter(p => filter === 'todos' || p.status === filter);
+  if (q) rows = rows.filter(p => (p.name || '').toLowerCase().includes(q) || (p.client || '').toLowerCase().includes(q));
+  const sort = $('#sort').value;
+  const stats = new Map(rows.map(r => [r.id, projectStats(r)]));
+  rows.sort((a, b) => {
+    if (sort === 'name') return (a.name || '').localeCompare(b.name || '', 'pt');
+    if (sort === 'created') return b.created_at.localeCompare(a.created_at);
+    if (sort === 'progress') return stats.get(b.id).pct - stats.get(a.id).pct;
+    return b.updated_at.localeCompare(a.updated_at);
+  });
+
+  const list = $('#list');
+  if (!rows.length) {
+    const none = projects.length === 0;
+    list.innerHTML = `<div class="empty">
+      <b>${none ? 'Ainda não há projetos' : 'Nenhum projeto neste filtro'}</b>
+      ${none ? 'Cria o primeiro projeto para começar a planear.' : 'Experimenta outro estado ou limpa a pesquisa.'}
+      ${none ? '<br><button class="btn primary" data-act="new">+ Novo Projeto</button>' : ''}
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = '<div class="grid">' + rows.map(r => {
+    const s = stats.get(r.id);
+    let next = '';
+    if (s.next) next = `<span class="lbl">Próxima:</span> ${escapeHtml(s.next.code || 'Tarefa')} · ${fmtDay(parseISODate(s.next.startDate))}`;
+    else if (s.ongoing) next = `<span class="lbl">${s.ongoing} tarefa${s.ongoing > 1 ? 's' : ''} em curso / por fechar</span>`;
+    else if (s.total && s.completed === s.total) next = '<span class="lbl">Todas as tarefas concluídas</span>';
+    else if (!s.total) next = '<span class="lbl">Sem tarefas ainda</span>';
+    return `
+    <div class="card" tabindex="0" data-id="${r.id}">
+      <div class="card-top">
+        <span class="pill ${r.status}">${STATUS[r.status] ? STATUS[r.status].label : r.status}</span>
+        <span class="grow"></span>
+        <button class="card-more" data-more title="Mais opções">⋯</button>
+      </div>
+      <div>
+        <div class="card-name">${escapeHtml(r.name || 'Sem nome')}</div>
+        ${r.client ? `<div class="card-client">${escapeHtml(r.client)}</div>` : ''}
+      </div>
+      <div class="progress-row">
+        <div class="bar"><i style="width:${s.pct}%"></i></div>
+        <span class="pct">${s.pct}%</span>
+      </div>
+      <div class="counts">
+        <div class="unpl"><b>${s.unplanned}</b><span>Por planear</span></div>
+        <div><b>${s.scheduled}</b><span>Planeadas</span></div>
+        <div class="done"><b>${s.completed}</b><span>Concluídas</span></div>
+      </div>
+      <div class="card-next">${next}</div>
+      <div class="card-foot">
+        <span title="Data de criação">Criado ${fmtDate(new Date(r.created_at))}</span>
+        <span title="${escapeHtml(fmtDateTime(r.updated_at))}">Alterado ${timeAgo(r.updated_at)}</span>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function openProject(id, newTab) {
+  const url = 'projeto.html?id=' + encodeURIComponent(id);
+  if (newTab) window.open(url, '_blank'); else location.href = url;
+}
+function findProject(id) { return projects.find(p => p.id === id); }
+
+/* ---------- Menu de contexto (botão direito) ---------- */
+function closeCtx() {
+  if (ctxMenu) { ctxMenu.remove(); ctxMenu = null; }
+  document.querySelectorAll('.card.ctx-open').forEach(c => c.classList.remove('ctx-open'));
+}
+function openCtx(id, x, y) {
+  closeCtx();
+  const p = findProject(id); if (!p) return;
+  const s = projectStats(p);
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  if (card) card.classList.add('ctx-open');
+  ctxMenu = document.createElement('div');
+  ctxMenu.className = 'ctx';
+  ctxMenu.innerHTML = `
+    <div class="ctx-head">
+      <div class="t">${escapeHtml(p.name || 'Sem nome')}</div>
+      <div class="d">Criado em ${fmtDateTime(p.created_at)}</div>
+      <div class="d">${s.total} tarefa${s.total === 1 ? '' : 's'} · ${s.pct}% concluído</div>
+    </div>
+    <button data-a="open">Abrir</button>
+    <button data-a="tab">Abrir num novo separador</button>
+    <button data-a="props">Propriedades…</button>
+    <hr>
+    <div class="sub-label">Estado</div>
+    ${Object.keys(STATUS).map(k => `<button data-a="status" data-v="${k}" class="${p.status === k ? 'current' : ''}">${STATUS[k].label}</button>`).join('')}
+    <hr>
+    <button data-a="dup">Duplicar projeto</button>
+    <button data-a="del" class="danger">Apagar…</button>`;
+  document.body.appendChild(ctxMenu);
+  const r = ctxMenu.getBoundingClientRect();
+  ctxMenu.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + 'px';
+  ctxMenu.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + 'px';
+  ctxMenu.addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    closeCtx();
+    const a = b.dataset.a;
+    if (a === 'open') openProject(id);
+    else if (a === 'tab') openProject(id, true);
+    else if (a === 'props') openProps(id);
+    else if (a === 'status') setStatus(id, b.dataset.v);
+    else if (a === 'dup') duplicateProject(id);
+    else if (a === 'del') deleteProject(id);
+  });
+}
+document.addEventListener('mousedown', (e) => { if (ctxMenu && !ctxMenu.contains(e.target)) closeCtx(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeCtx(); document.querySelectorAll('.modal-backdrop').forEach(m => m.hidden = true); } });
+window.addEventListener('scroll', closeCtx, true);
+window.addEventListener('resize', closeCtx);
+
+$('#list').addEventListener('click', (e) => {
+  if (e.target.closest('[data-act="new"]')) return openNew();
+  const card = e.target.closest('.card'); if (!card) return;
+  if (e.target.closest('[data-more]')) {
+    const r = e.target.getBoundingClientRect();
+    return openCtx(card.dataset.id, r.left, r.bottom + 4);
+  }
+  openProject(card.dataset.id, e.ctrlKey || e.metaKey);
+});
+$('#list').addEventListener('auxclick', (e) => {
+  const card = e.target.closest('.card');
+  if (card && e.button === 1) openProject(card.dataset.id, true);
+});
+$('#list').addEventListener('contextmenu', (e) => {
+  const card = e.target.closest('.card'); if (!card) return;
+  e.preventDefault();
+  openCtx(card.dataset.id, e.clientX, e.clientY);
+});
+$('#list').addEventListener('keydown', (e) => {
+  const card = e.target.closest('.card'); if (!card) return;
+  if (e.key === 'Enter') openProject(card.dataset.id);
+  if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+    e.preventDefault();
+    const r = card.getBoundingClientRect();
+    openCtx(card.dataset.id, r.left + 20, r.top + 40);
+  }
+});
+
+$('#chips').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-f]'); if (!b) return;
+  filter = b.dataset.f; safeSet(FILTER_KEY, filter); render();
+});
+$('#search').addEventListener('input', render);
+$('#sort').value = safeGet(SORT_KEY) || 'updated';
+$('#sort').addEventListener('change', () => { safeSet(SORT_KEY, $('#sort').value); render(); });
+
+/* ---------- Ações ---------- */
+function replaceRow(row) {
+  const i = projects.findIndex(p => p.id === row.id);
+  if (i >= 0) projects[i] = row; else projects.unshift(row);
+}
+
+async function setStatus(id, status) {
+  try {
+    replaceRow(await DB.updateProject(id, { status }));
+    render();
+    toast(`Estado: ${STATUS[status].label}`);
+  } catch (e) { alert('Falha: ' + e.message); }
+}
+
+async function duplicateProject(id) {
+  const p = findProject(id); if (!p) return;
+  try {
+    const row = await DB.createProject({
+      name: (p.name || 'Projeto') + ' (cópia)', client: p.client, description: p.description,
+      status: 'ativo', data: JSON.parse(JSON.stringify(p.data || DB.EMPTY_DATA()))
+    });
+    replaceRow(row);
+    if (filter !== 'todos' && filter !== 'ativo') { filter = 'ativo'; safeSet(FILTER_KEY, filter); }
+    render();
+    toast('Projeto duplicado');
+  } catch (e) { alert('Falha: ' + e.message); }
+}
+
+async function deleteProject(id) {
+  const p = findProject(id); if (!p) return;
+  const s = projectStats(p);
+  const answer = prompt(`Apagar definitivamente "${p.name}" e as suas ${s.total} tarefas?\nIsto não pode ser desfeito.\n\nPara confirmar, escreve APAGAR:`);
+  if (answer === null) return;
+  if (answer.trim().toUpperCase() !== 'APAGAR') { alert('Não confirmado — nada foi apagado.'); return; }
+  try {
+    await DB.deleteProject(id);
+    projects = projects.filter(x => x.id !== id);
+    $('#modal-props').hidden = true;
+    render();
+    toast('Projeto apagado');
+  } catch (e) { alert('Falha: ' + e.message); }
+}
+
+/* ---------- Novo projeto ---------- */
+function openNew() {
+  $('#np-name').value = ''; $('#np-client').value = ''; $('#np-desc').value = ''; $('#np-file').value = '';
+  $('#modal-new').hidden = false;
+  setTimeout(() => $('#np-name').focus(), 30);
+}
+$('#btn-new').addEventListener('click', openNew);
+
+function readLegacyFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const d = JSON.parse(reader.result);
+        if (!d || !Array.isArray(d.pieces)) throw new Error('Ficheiro sem tarefas reconhecíveis.');
+        const pieces = d.pieces.slice();
+        if (Array.isArray(d.completed)) for (const c of d.completed) {
+          if (!c.completedAt) c.completedAt = new Date().toISOString();
+          pieces.push(c);
+        }
+        resolve({ name: d.projectName || '', data: { pieces, workSaturdays: Array.isArray(d.workSaturdays) ? d.workSaturdays : [] } });
+      } catch (e) { reject(new Error('Ficheiro inválido: ' + e.message)); }
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
+}
+
+$('#np-save').addEventListener('click', async () => {
+  const btn = $('#np-save');
+  let name = $('#np-name').value.trim();
+  let data = DB.EMPTY_DATA();
+  try {
+    const file = $('#np-file').files[0];
+    if (file) {
+      const legacy = await readLegacyFile(file);
+      data = legacy.data;
+      if (!name) name = legacy.name || file.name.replace(/\.json$/i, '');
+    }
+    if (!name) { alert('Indica o nome do projeto.'); $('#np-name').focus(); return; }
+    btn.disabled = true;
+    const row = await DB.createProject({
+      name, client: $('#np-client').value.trim() || null,
+      description: $('#np-desc').value.trim() || null, status: 'ativo', data
+    });
+    $('#modal-new').hidden = true;
+    openProject(row.id);
+  } catch (e) { alert(e.message); }
+  finally { btn.disabled = false; }
+});
+$('#np-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#np-save').click(); });
+
+/* ---------- Propriedades ---------- */
+function openProps(id) {
+  const p = findProject(id); if (!p) return;
+  propsId = id;
+  const s = projectStats(p);
+  $('#pp-name').value = p.name || '';
+  $('#pp-client').value = p.client || '';
+  $('#pp-status').value = p.status;
+  $('#pp-desc').value = p.description || '';
+  const row = (k, v) => `<tr><th>${k}</th><td>${v}</td></tr>`;
+  const dash = '<small>—</small>';
+  $('#pp-info').innerHTML = `
+    <div class="props-section">Registo</div>
+    <table class="props-table">
+      ${row('Data de criação', fmtDateTime(p.created_at))}
+      ${row('Última alteração', `${fmtDateTime(p.updated_at)} <small>(${timeAgo(p.updated_at)})</small>`)}
+      ${row('Idade do projeto', (() => { const d = Math.floor((Date.now() - new Date(p.created_at)) / 86400000); return d === 0 ? 'Criado hoje' : `${d} dia${d > 1 ? 's' : ''}`; })())}
+    </table>
+    <div class="props-section">Planeamento</div>
+    <table class="props-table">
+      ${row('Tarefas (total)', `${s.total}${s.indicative ? ` <small>(${s.indicative} indicativas)</small>` : ''}`)}
+      ${row('Por planear', s.unplanned)}
+      ${row('Planeadas por concluir', `${s.scheduled}${s.ongoing ? ` <small>(${s.ongoing} já iniciadas)</small>` : ''}`)}
+      ${row('Concluídas', `${s.completed} <small>(${s.pct}%)</small>`)}
+      ${row('Horas planeadas', s.plannedSlots ? fmtHours(s.plannedSlots) : dash)}
+      ${row('Horas reais (concluídas)', s.realSlots ? fmtHours(s.realSlots) : dash)}
+      ${row('Período planeado', s.firstDate ? `${fmtDate(parseISODate(s.firstDate))} → ${fmtDate(parseISODate(s.lastDate))}` : dash)}
+      ${row('Próxima tarefa', s.next ? `${escapeHtml(s.next.code || 'Tarefa')} <small>· ${fmtDay(parseISODate(s.next.startDate))}</small>` : dash)}
+      ${row('Última conclusão', s.lastCompleted ? fmtDateTime(s.lastCompleted) : dash)}
+      ${row('Sábados de trabalho', s.workSaturdays)}
+      ${row('ID', `<span class="mono">${escapeHtml(p.id)}</span>`)}
+    </table>`;
+  $('#modal-props').hidden = false;
+}
+$('#pp-save').addEventListener('click', async () => {
+  const name = $('#pp-name').value.trim();
+  if (!name) { alert('O nome não pode ficar vazio.'); return; }
+  try {
+    replaceRow(await DB.updateProject(propsId, {
+      name, client: $('#pp-client').value.trim() || null,
+      description: $('#pp-desc').value.trim() || null, status: $('#pp-status').value
+    }));
+    $('#modal-props').hidden = true;
+    render();
+    toast('Propriedades guardadas');
+  } catch (e) { alert('Falha: ' + e.message); }
+});
+$('#pp-delete').addEventListener('click', () => deleteProject(propsId));
+
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => b.closest('.modal-backdrop').hidden = true));
+document.querySelectorAll('.modal-backdrop').forEach(m => m.addEventListener('mousedown', (e) => { if (e.target === m) m.hidden = true; }));
+
+/* ---------- Arranque ---------- */
+(async () => {
+  $('#mode-pill').hidden = DB.mode !== 'local';
+  await loadProjects();
+  const propsParam = new URLSearchParams(location.search).get('props');
+  if (propsParam && findProject(propsParam)) {
+    openProps(propsParam);
+    history.replaceState(null, '', location.pathname);
+  }
+})();
+
+// Atualiza a lista quando se volta ao separador (vê alterações de colegas).
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !ctxMenu
+      && $('#modal-new').hidden && $('#modal-props').hidden) loadProjects();
+});
+</script>
+</body>
+</html>
