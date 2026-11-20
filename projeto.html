@@ -1,0 +1,4897 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1400">
+<title>Gestão de Projeto |</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text x=%2250%22 y=%2255%22 font-size=%2270%22 text-anchor=%22middle%22 dominant-baseline=%22central%22>📅</text></svg>">
+<style>
+/* ============================================================
+   BASE
+   ============================================================ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #222; background: #f4f6f9; }
+button { font-family: inherit; font-size: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; font-size: inherit; }
+
+:root {
+  --slot-px: 22px;            /* width of one 30-min slot (screen) */
+  --row-h: 54px;              /* height of each piece row (3 lines: item / horas / projeto) */
+  --header-h: 52px;           /* gantt header height */
+  --person-col: 240px;        /* left column width (screen) */
+  --color-grid: #e6e9ee;
+  --color-grid-strong: #ccd2db;
+  --color-lunch: #f1eee5;
+  --color-weekend: #d6dce5;
+  --color-today: #2b6cb0;
+  --color-text: #222;
+  --color-muted: #6b7280;
+}
+
+/* ============================================================
+   APP LAYOUT
+   ============================================================ */
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+
+.topbar {
+  display: flex; align-items: center; justify-content: center; gap: 24px;
+  background: #ffffff; border-bottom: 1px solid #d8dde5;
+  padding: 12px 18px;
+  position: relative;
+}
+.brand {
+  font-weight: 700; font-size: 15px; color: #1a2840; letter-spacing: 0.2px;
+  position: absolute; left: 18px; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; gap: 6px;
+}
+.brand .sep { color: #8a93a4; font-weight: 400; }
+.brand-project {
+  outline: none;
+  cursor: text;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border-radius: 3px;
+  min-width: 40px;
+  transition: background 100ms;
+}
+.brand-project:hover { background: #f0f3f8; }
+.brand-project:focus { background: #f0f3f8; box-shadow: 0 0 0 2px #2b6cb0; }
+.brand-project:empty::before {
+  content: attr(data-placeholder);
+  color: #a0a8b4;
+  font-weight: 400;
+  font-style: italic;
+}
+.brand-project:focus:empty::before { color: #c0c6d0; }
+.brand-back {
+  color: #2b6cb0; text-decoration: none; font-weight: 600;
+  padding: 3px 8px; margin-left: -8px; border-radius: 4px;
+}
+.brand-back:hover { background: #eef3fa; }
+.save-status {
+  align-self: center; font-size: 11.5px; color: #6b7280;
+  padding: 3px 8px; border-radius: 10px; white-space: nowrap;
+}
+.save-status::before { content: '●'; margin-right: 5px; font-size: 9px; vertical-align: 1px; }
+.save-status.ok::before { color: #38a169; }
+.save-status.pending::before { color: #d69e2e; }
+.save-status.error { color: #c53030; background: #fff5f5; }
+.save-status.error::before { color: #c53030; }
+.conflict-banner {
+  position: sticky; top: 0; z-index: 2000;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: #fffaf0; border-bottom: 1px solid #f6ad55; color: #7b341e;
+  padding: 10px 18px; font-size: 13px;
+}
+.conflict-banner span { flex: 1; min-width: 260px; }
+.conflict-banner button {
+  background: #fff; border: 1px solid #c8cfd9; padding: 6px 12px; border-radius: 4px;
+}
+.conflict-banner button.primary { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+@media print { .conflict-banner, .save-status { display: none !important; } }
+
+.tabs { display: flex; gap: 6px; }
+.tabs-right { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); }
+.tab {
+  background: #f0f3f8; border: 1px solid #d8dde5; color: #4a5568;
+  padding: 10px 22px; font-size: 14px; font-weight: 600; border-radius: 6px;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.tab.active { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+.tab[data-view="real"].active { background: #C97950; border-color: #A85F33; }
+.tab[data-view="progress"].active { background: #319795; border-color: #2C7A7B; }
+.tab[data-view="completed"].active { background: #2f855a; border-color: #276749; }
+.tab.tab-icon { padding: 8px 14px; font-size: 18px; line-height: 1; }
+.tab:hover:not(.active) { background: #e6ebf2; }
+
+.toolbar {
+  display: flex; flex-direction: column; gap: 6px;
+  background: #fbfcfd; border-bottom: 1px solid #e2e6ed;
+  padding: 8px 18px;
+}
+.toolbar-row {
+  display: flex; align-items: center; gap: 8px;
+}
+/* Linha de 3 colunas (esquerda / centro / direita) — usa flex:1 nos grupos
+   para o grupo central ficar de facto centrado mesmo com larguras assimétricas. */
+.toolbar-row-3col { width: 100%; }
+.toolbar-group { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.toolbar-group-left { justify-content: flex-start; }
+.toolbar-group-center { justify-content: center; }
+.toolbar-group-right { justify-content: flex-end; }
+.unplanned-badge {
+  display: inline-block;
+  background: #ed8936; color: #fff;
+  font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 9px;
+  margin-left: 4px; min-width: 14px; text-align: center;
+}
+.unplanned-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+  font-size: 13px;
+}
+.unplanned-item:last-child { border-bottom: none; }
+.unplanned-item:hover { background: #fbfcfd; }
+.unplanned-item .up-info { flex: 1; min-width: 0; }
+.unplanned-item .up-title { font-weight: 600; color: #2d3748; }
+.unplanned-item .up-project { font-weight: 500; color: #4a5568; margin-left: 4px; }
+.unplanned-item .up-meta { font-size: 11.5px; color: #6b7280; margin-top: 2px; }
+.unplanned-item .up-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.unplanned-item .up-actions button {
+  background: #fff; border: 1px solid #c8cfd9; padding: 4px 10px;
+  border-radius: 4px; font-size: 12px; cursor: pointer;
+}
+.unplanned-item .up-actions button:hover { background: #f0f3f8; }
+.unplanned-item .up-actions button.danger { color: #c53030; border-color: #f0a4a4; }
+.unplanned-empty {
+  padding: 30px; text-align: center; color: #6b7280; font-size: 13px;
+}
+.toolbar button {
+  background: #fff; border: 1px solid #c8cfd9; color: #2d3748;
+  padding: 6px 12px; border-radius: 4px; font-size: 12.5px;
+}
+.toolbar button:hover { background: #f0f3f8; border-color: #a4adba; }
+.toolbar button.primary { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
+.toolbar button.primary:hover { background: #234e83; }
+.toolbar .spacer { flex: 1; }
+.toolbar .hint { color: var(--color-muted); font-size: 12px; }
+
+/* ============================================================
+   GANTT
+   ============================================================ */
+.gantt-view { flex: 1; padding: 12px 18px 24px; overflow: hidden; }
+.gantt-wrap {
+  background: #fff; border: 1px solid #d8dde5; border-radius: 6px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+
+.gantt-scroll {
+  overflow: auto;
+  position: relative;
+}
+
+.gantt-table {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--person-col) 1fr;
+}
+
+/* Header */
+.gantt-header {
+  display: contents;
+}
+.person-head {
+  position: sticky; left: 0; top: 0; z-index: 30;
+  background: #1a2840;
+  color: #fff;
+  border-right: 1px solid #0d1726;
+  border-bottom: 1px solid #0d1726;
+  padding: 6px 10px;
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  display: flex; align-items: center; justify-content: center;
+  height: var(--header-h);
+}
+.time-head {
+  position: sticky; top: 0; z-index: 20;
+  background: #f0f3f8;
+  border-bottom: 1px solid var(--color-grid-strong);
+  height: var(--header-h);
+  position: relative;
+}
+.day-header-row {
+  display: flex; height: 24px;
+  border-bottom: 1px solid var(--color-grid);
+}
+.hour-header-row { display: flex; height: 28px; }
+.day-head-cell {
+  border-right: 1px solid var(--color-grid-strong);
+  font-weight: 700; font-size: 12px; color: #1a2840;
+  display: flex; align-items: center; justify-content: center;
+  white-space: nowrap;
+}
+.day-head-cell.weekend { background: var(--color-weekend); color: #6b7280; }
+.day-head-cell .sat-toggle {
+  cursor: pointer;
+  font-size: 13px;
+  color: #2b6cb0;
+  margin-right: 4px;
+  user-select: none;
+  display: inline-block;
+  line-height: 1;
+  vertical-align: middle;
+  transition: transform 80ms;
+}
+.day-head-cell .sat-toggle:hover { color: #1a4d80; transform: scale(1.15); }
+.hour-head-cell {
+  border-right: 1px solid var(--color-grid);
+  font-size: 10.5px; color: #4a5568;
+  display: flex; align-items: center; justify-content: flex-start;
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 0 0 0 3px;
+}
+.hour-head-cell.day-end { border-right: 1px solid var(--color-grid-strong); }
+.hour-head-cell.weekend { background: var(--color-weekend); color: #6b7280; }
+
+/* Body rows */
+.gantt-body { display: contents; }
+
+/* Per-piece left cell */
+.piece-cell {
+  position: sticky; left: 0; z-index: 10;
+  background: #fff;
+  border-right: 1px solid var(--color-grid-strong);
+  border-bottom: 1px solid var(--color-grid);
+  padding: 0 12px;
+  display: flex; align-items: center;
+  height: var(--row-h);
+  font-size: 12px;
+  color: #4a5568;
+  gap: 8px;
+}
+.piece-cell.has-gap {
+  background: #d3e1f0;   /* azul claro sólido — tempo livre antes da peça */
+}
+.piece-cell.indicative {
+  background: #FBF1D4;   /* tom claro do amarelo planeado */
+}
+.piece-cell.indicative.view-real {
+  background: #EDE6F5;   /* tom claro do roxo lavanda do indicativo real */
+}
+.piece-cell .piece-cell-block {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; justify-content: center;
+  line-height: 1.25;
+}
+.piece-cell .piece-cell-label {
+  font-weight: 600; color: #2d3748;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.piece-cell .piece-cell-label .pc-project {
+  font-weight: 600; color: #2d3748;
+}
+.piece-cell .piece-cell-time {
+  font-size: 11px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.piece-cell .piece-cell-time .t-start,
+.piece-cell .piece-cell-time .t-arrow,
+.piece-cell .piece-cell-time .t-end { color: #2d3748; }
+.piece-cell .piece-cell-time .t-arrow { margin: 0 12px; }
+.piece-cell .piece-cell-duration {
+  font-size: 11px; color: #8a93a4;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Cabeçalho de grupo (linha de título na coluna de tarefas) */
+.group-cell {
+  position: sticky; left: 0; z-index: 11;
+  background: #e3eaf3;
+  border-right: 1px solid var(--color-grid-strong);
+  border-bottom: 1px solid #c3cfdd;
+  border-top: 1px solid #c3cfdd;
+  height: 28px;
+  padding: 0 12px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 700; color: #1a2840;
+  text-transform: uppercase; letter-spacing: 0.4px;
+  user-select: none;
+}
+.group-cell .group-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-cell .group-count {
+  font-size: 10.5px; font-weight: 600; color: #4a5568; text-transform: none; letter-spacing: 0;
+  background: #fff; border-radius: 9px; padding: 1px 7px;
+}
+.group-cell.no-group { background: #eef0f3; color: #6b7280; }
+.group-row {
+  height: 28px;
+  background: #eef3f9;
+  border-bottom: 1px solid #c3cfdd;
+  border-top: 1px solid #c3cfdd;
+}
+.group-row.no-group { background: #f3f4f6; }
+
+/* Gestor de grupos */
+.group-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-bottom: 1px solid #eee; background: #fff;
+}
+.group-item:last-child { border-bottom: none; }
+.group-item.dragging { opacity: 0.4; }
+.group-item.drop-before { box-shadow: inset 0 2px 0 #2b6cb0; }
+.group-item.drop-after { box-shadow: inset 0 -2px 0 #2b6cb0; }
+.group-item .gi-handle { cursor: grab; color: #a0a8b4; font-size: 14px; }
+.group-item .gi-pos { width: 18px; text-align: right; color: #8a93a4; font-size: 11.5px; }
+.group-item .gi-name {
+  flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid transparent; border-radius: 4px;
+  font-weight: 600; color: #2d3748; background: transparent;
+}
+.group-item .gi-name:hover { border-color: #d8dde5; }
+.group-item .gi-name:focus { outline: none; border-color: #2b6cb0; background: #fff; }
+.group-item .gi-count { font-size: 11.5px; color: #6b7280; white-space: nowrap; }
+.group-item button {
+  background: #fff; border: 1px solid #c8cfd9; border-radius: 4px; padding: 3px 7px; font-size: 11px; color: #4a5568;
+}
+.group-item button:hover:not(:disabled) { background: #f0f3f8; }
+.group-item button:disabled { opacity: 0.35; cursor: default; }
+.group-item button.danger { color: #c53030; border-color: #f0a4a4; }
+#group-add { background: #2b6cb0; color: #fff; border: 1px solid #2b6cb0; border-radius: 4px; padding: 6px 14px; font-weight: 600; }
+#group-add:hover { background: #234e83; }
+
+.row-area {
+  position: relative;
+  border-bottom: 1px solid var(--color-grid);
+  height: var(--row-h);
+}
+
+/* Grid cells background (rendered as gradient stripes for performance) */
+.row-area .grid-bg {
+  position: absolute; inset: 0; pointer-events: none;
+}
+.row-area .day-sep {
+  position: absolute; top: 0; bottom: 0; width: 1px;
+  background: var(--color-grid-strong); pointer-events: none;
+}
+.row-area .hour-sep {
+  position: absolute; top: 0; bottom: 0; width: 1px;
+  background: var(--color-grid); pointer-events: none;
+}
+.row-area .weekend-bg {
+  position: absolute; top: 0; bottom: 0;
+  background: var(--color-weekend); pointer-events: none;
+}
+
+/* Today vertical line */
+.today-line {
+  position: absolute; top: 0; bottom: 0; width: 2px;
+  background: var(--color-today);
+  z-index: 5; pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
+}
+.today-line::before {
+  content: 'Hoje'; position: absolute; top: 2px; left: 4px;
+  font-size: 10px; font-weight: 700; color: var(--color-today);
+  background: rgba(255,255,255,0.85); padding: 1px 4px; border-radius: 2px;
+}
+
+/* Pieces */
+.piece {
+  position: absolute; top: 4px; bottom: 4px;
+  border-radius: 4px;
+  background: #4a90e2;
+  color: #fff;
+  font-size: 11.5px; font-weight: 600;
+  padding: 2px 8px;
+  display: flex; align-items: center;
+  cursor: grab;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+  user-select: none;
+  overflow: hidden;
+  border: 1px solid rgba(0,0,0,0.08);
+  box-sizing: border-box;
+  transition: box-shadow 120ms, transform 80ms;
+}
+.piece:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.18); }
+/* Etiqueta "flutuante" — estende-se por cima de todos os segmentos da peça
+   para o nome aparecer uma única vez e não cortar quando o bloco muda de dia. */
+.piece-label-overlay {
+  position: absolute; top: 4px; bottom: 4px;
+  color: #fff; font-size: 11.5px; font-weight: 600;
+  padding: 2px 8px;
+  display: flex; align-items: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none;
+  z-index: 2;
+}
+.piece.piece-thin {
+  top: 50%; bottom: auto;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 1px;
+  padding: 0;
+  box-shadow: none;
+  opacity: 0.95;
+}
+.piece.piece-thin:hover { box-shadow: 0 1px 4px rgba(0,0,0,0.25); }
+.piece.dragging { cursor: grabbing; z-index: 50; opacity: 0.92; box-shadow: 0 4px 14px rgba(0,0,0,0.25); }
+.piece.indicative {
+  background: repeating-linear-gradient(45deg, #D69E2E, #D69E2E 8px, #B5851D 8px, #B5851D 16px) !important;
+  border-color: #8a6515 !important;
+}
+.piece.indicative.view-real {
+  background: repeating-linear-gradient(45deg, #9F86CC, #9F86CC 8px, #7C66AA 8px, #7C66AA 16px) !important;
+  border-color: #5E4D85 !important;
+}
+.piece.completed {
+  background: #38a169 !important;
+  border-color: #276749 !important;
+}
+.piece.completed.indicative {
+  background: repeating-linear-gradient(45deg, #38a169, #38a169 8px, #276749 8px, #276749 16px) !important;
+  border-color: #1e4d34 !important;
+}
+/* Overlay SHIFT+G: barras da vista oposta numa faixa estreita no fundo da linha.
+   A peça principal encolhe em baixo (.has-overlay .piece) para deixar espaço
+   à faixa do Gantt oposto, em vez de sobrepor totalmente. */
+.piece.piece-overlay {
+  top: auto;
+  bottom: 3px;
+  height: 9px;
+  border-radius: 2px;
+  opacity: 0.95;
+  pointer-events: none;
+  z-index: 2;
+  box-shadow: none;
+}
+.piece.piece-overlay.piece-thin {
+  top: auto; bottom: 3px;
+  height: 9px;
+  transform: none;
+  border-radius: 2px;
+}
+.piece.piece-overlay .piece-label,
+.piece.piece-overlay .piece-resize { display: none; }
+/* Quando a linha tem overlay ativo, a peça principal encolhe para deixar
+   visível a faixa do Gantt oposto. */
+.row-area.has-overlay .piece:not(.piece-overlay) {
+  bottom: 15px;
+}
+.row-area.has-overlay .piece.piece-thin:not(.piece-overlay) {
+  top: calc(50% - 8px);
+}
+.piece-cell.in-progress {
+  background: #cfe2f3 !important;   /* azul bebé — hoje está dentro da tarefa */
+}
+.piece-cell.completed {
+  background: #d6f5d6 !important;
+}
+.piece-cell.completed .piece-cell-label,
+.piece-cell.completed .piece-cell-time .t-start,
+.piece-cell.completed .piece-cell-time .t-arrow,
+.piece-cell.completed .piece-cell-time .t-end { color: #1e4d34; }
+
+/* Planned summary (usado no modal de Concluir) */
+.planned-summary {
+  background: #f4f6f9;
+  border: 1px solid #d8dde5;
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  font-size: 12.5px;
+  color: #2d3748;
+}
+.planned-summary .ps-title {
+  font-weight: 700;
+  color: #1a2840;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.planned-summary .ps-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.planned-summary .ps-row span b { color: #1a2840; font-weight: 600; margin-right: 4px; }
+.real-section-title {
+  font-weight: 700;
+  color: #1a2840;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 6px 0 6px 2px;
+}
+
+/* Tabs internos do modal Editar Tarefa (Planeado / Real) */
+.modal-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #d8dde5;
+  margin-bottom: 12px;
+}
+.modal-tabs .mtab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.modal-tabs .mtab:hover { color: #2d3748; }
+.modal-tabs .mtab.active {
+  color: #1a2840;
+  border-bottom-color: #2b6cb0;
+}
+.mtab-panel[hidden] { display: none; }
+.piece.pop { animation: pop 220ms ease-out; }
+@keyframes pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.06); box-shadow: 0 4px 16px rgba(0,0,0,0.30); }
+  100% { transform: scale(1); }
+}
+.piece .piece-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.piece .piece-resize {
+  position: absolute;
+  top: 0; right: 0; height: 100%;
+  width: 7px; cursor: ew-resize;
+  background: rgba(255,255,255,0);
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+.piece .piece-resize:hover { background: rgba(0,0,0,0.18); }
+
+.piece-tooltip {
+  position: fixed; z-index: 100;
+  background: #1a2840; color: #fff;
+  padding: 8px 10px; border-radius: 4px;
+  font-size: 11.5px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  pointer-events: none;
+  max-width: 280px;
+  line-height: 1.5;
+}
+.piece-tooltip b { color: #ffd089; }
+
+/* Cogwheel dropdown */
+.cog-menu {
+  position: fixed; z-index: 250;
+  background: #fff; border: 1px solid #c8cfd9; border-radius: 4px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  min-width: 220px; padding: 4px 0;
+}
+.cog-menu button {
+  display: block; width: 100%; text-align: left;
+  background: none; border: none; padding: 9px 14px;
+  font-size: 13px; color: #2d3748; cursor: pointer;
+}
+.cog-menu button:hover { background: #f0f3f8; }
+
+/* Context menu */
+.ctx-menu {
+  position: fixed; z-index: 200;
+  background: #fff; border: 1px solid #c8cfd9; border-radius: 4px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  min-width: 180px; padding: 4px 0;
+}
+.ctx-menu button {
+  display: block; width: 100%; text-align: left;
+  background: none; border: none; padding: 8px 14px;
+  font-size: 12.5px; color: #2d3748;
+}
+.ctx-menu button:hover { background: #f0f3f8; }
+.ctx-menu .sep { height: 1px; background: #e2e6ed; margin: 4px 0; }
+.ctx-menu .danger { color: #c53030; }
+
+/* Empty state */
+.empty-state {
+  padding: 40px; text-align: center; color: var(--color-muted);
+  font-size: 13px;
+}
+.empty-state b { color: #2d3748; }
+
+/* ============================================================
+   PROGRESS VIEW
+   ============================================================ */
+.progress-view { flex: 1; padding: 16px 18px 24px; overflow: auto; }
+.progress-title {
+  font-size: 14px; font-weight: 700; color: #1a2840;
+  margin-bottom: 12px;
+}
+.progress-section-title {
+  font-size: 12px; font-weight: 700; color: #4a5568;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  margin: 4px 0 10px 0;
+}
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.kpi-card {
+  background: #fff;
+  border: 1px solid #d8dde5;
+  border-left: 4px solid #d8dde5;
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kpi-card .kpi-label {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  color: #6b7280;
+}
+.kpi-card .kpi-value {
+  font-size: 24px; font-weight: 800; color: #1a2840;
+  line-height: 1.1;
+}
+.kpi-card .kpi-value .kpi-value-side {
+  font-size: 13px; font-weight: 600; color: #6b7280; margin-left: 6px;
+}
+.kpi-card .kpi-sub { font-size: 11.5px; color: #4a5568; }
+.kpi-card.completion { border-left-color: #2b6cb0; }
+.kpi-card.completion .kpi-value { color: #2b6cb0; }
+.kpi-card.deviation { border-left-color: #d69e2e; }
+.kpi-card.deviation .kpi-value { color: #b7791f; }
+.kpi-card.deviation.dev-positive .kpi-value { color: #c53030; }
+.kpi-card.deviation.dev-negative .kpi-value { color: #2f855a; }
+.kpi-card.late { border-left-color: #c53030; }
+.kpi-card.late .kpi-value { color: #c53030; }
+.kpi-card.early { border-left-color: #2f855a; }
+.kpi-card.early .kpi-value { color: #2f855a; }
+.progress-empty {
+  background: #fff; border: 1px solid #d8dde5; border-radius: 6px;
+  padding: 32px; text-align: center; color: #6b7280; font-size: 13px;
+}
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+.progress-card {
+  position: relative;
+  background: #fff;
+  border: 1px solid #d8dde5;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  overflow: hidden;
+  min-height: 86px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.progress-card .pc-fill {
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  background: linear-gradient(90deg, #a7e2b1, #6BCB7A);
+  opacity: 0.55;
+  transition: width 300ms ease-out;
+  pointer-events: none;
+  z-index: 0;
+}
+.progress-card.completed .pc-fill {
+  background: linear-gradient(90deg, #6BCB7A, #38a169);
+  opacity: 0.7;
+}
+.progress-card > * { position: relative; z-index: 1; }
+.progress-card .pc-title {
+  font-weight: 700;
+  color: #1a2840;
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.progress-card .pc-group {
+  font-size: 10px;
+  font-weight: 700;
+  color: #2b6cb0;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.3;
+}
+.progress-card .pc-time {
+  font-size: 11px;
+  color: #4a5568;
+  line-height: 1.3;
+}
+.progress-card .pc-duration {
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.3;
+}
+.progress-card .pc-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: auto;
+}
+.progress-card .pc-pct {
+  font-size: 20px;
+  font-weight: 800;
+  color: #1F633A;
+  line-height: 1;
+}
+.progress-card .pc-status {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #4a5568;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.progress-card.completed .pc-status { color: #1F633A; }
+.progress-card.indicative .pc-fill {
+  background: linear-gradient(90deg, #C9BEE4, #9F86CC);
+  opacity: 0.5;
+}
+.progress-card.indicative .pc-status { color: #5E4D85; }
+.progress-card.indicative.completed .pc-fill {
+  background: linear-gradient(90deg, #6BCB7A, #38a169);
+  opacity: 0.7;
+}
+.progress-card .pc-delay {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #c53030;
+  margin-top: 4px;
+  line-height: 1.3;
+  letter-spacing: 0.2px;
+}
+.progress-card .pc-delay.done {
+  color: #b76e00;
+}
+
+/* ============================================================
+   COMPLETED VIEW
+   ============================================================ */
+.completed-view { flex: 1; padding: 16px 18px 24px; overflow: auto; }
+.completed-wrap {
+  background: #fff; border: 1px solid #d8dde5; border-radius: 6px;
+  padding: 16px;
+}
+.completed-title { font-size: 14px; font-weight: 700; margin-bottom: 12px; color: #1a2840; }
+.completed-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.completed-table th, .completed-table td {
+  text-align: left; padding: 8px 10px;
+  border-bottom: 1px solid #e6e9ee;
+}
+.completed-table th { background: #f0f3f8; font-weight: 700; color: #1a2840; }
+.completed-table tr:hover td { background: #fbfcfd; }
+.completed-pager { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 14px; }
+.completed-pager button {
+  background: #fff; border: 1px solid #c8cfd9; border-radius: 4px;
+  padding: 4px 10px; font-size: 12px;
+}
+.completed-pager button:disabled { color: #aaa; cursor: not-allowed; }
+.completed-tool-btn {
+  background: #fff; border: 1px solid #c8cfd9; color: #2d3748;
+  padding: 5px 11px; border-radius: 4px; font-size: 12.5px; cursor: pointer;
+}
+.completed-tool-btn:hover:not(:disabled) { background: #f0f3f8; border-color: #a4adba; }
+.completed-tool-btn:disabled { color: #a0a4ab; cursor: not-allowed; border-color: #e2e6ed; }
+.completed-tool-btn.danger { color: #c53030; border-color: #f0a4a4; }
+.completed-tool-btn.danger:hover:not(:disabled) { background: #fff5f5; border-color: #c53030; }
+.completed-pager span { font-size: 12px; color: #4a5568; }
+.completed-table .restore {
+  background: #fff; border: 1px solid #c8cfd9; padding: 3px 8px;
+  border-radius: 3px; font-size: 11.5px;
+}
+.completed-table .restore:hover { background: #f0f3f8; }
+.completed-table tr.ln-done td { background: #d6f5d6; }
+.completed-table tr.ln-done:hover td { background: #c8efc8; }
+
+/* ============================================================
+   MODALS
+   ============================================================ */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(15,20,30,0.42);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 500;
+}
+.modal-backdrop[hidden] { display: none; }
+#modal-piece { z-index: 510; }
+.ctx-menu[hidden], .piece-tooltip[hidden] { display: none; }
+.modal {
+  background: #fff; border-radius: 6px;
+  width: 460px; max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 60px);
+  display: flex; flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.25);
+}
+.modal-header {
+  padding: 14px 18px; border-bottom: 1px solid #e2e6ed;
+  font-weight: 700; color: #1a2840; font-size: 14px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.modal-header .close {
+  background: none; border: none; font-size: 20px; color: #6b7280;
+  cursor: pointer; line-height: 1;
+}
+.modal-body { padding: 16px 18px; overflow: auto; }
+.modal-footer {
+  padding: 12px 18px; border-top: 1px solid #e2e6ed;
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+.modal-footer button {
+  background: #fff; border: 1px solid #c8cfd9; color: #2d3748;
+  padding: 6px 14px; border-radius: 4px; font-size: 12.5px;
+}
+.modal-footer button.primary { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
+.modal-footer button.primary:hover { background: #234e83; }
+.modal-footer button.danger { color: #c53030; border-color: #f0a4a4; }
+
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 12px; color: #4a5568; margin-bottom: 4px; font-weight: 600; }
+.field input, .field select, .field textarea {
+  width: 100%; padding: 6px 8px;
+  border: 1px solid #c8cfd9; border-radius: 4px;
+  font-size: 13px;
+}
+.field input[type="checkbox"], .field input[type="radio"] {
+  width: auto; padding: 0; border: none;
+}
+.field-row { display: flex; gap: 10px; }
+.field-row .field { flex: 1; }
+.field-hint { font-size: 11px; color: var(--color-muted); margin-top: 4px; }
+
+/* ============================================================
+   RESUMO (A4 portrait)
+   ============================================================ */
+.summary-view { display: none; padding: 15mm; background: #fff; }
+.summary-view .summary-title {
+  font-size: 16pt; font-weight: 700; color: #1a2840;
+  margin: 0 0 1mm 0;
+}
+.summary-view .summary-meta {
+  font-size: 9.5pt; color: #4a5568;
+  margin: 0 0 5mm 0;
+  display: flex; align-items: center; gap: 3mm;
+  flex-wrap: wrap;
+}
+.summary-view .summary-view-badge {
+  display: inline-block;
+  color: #fff;
+  font-weight: 700;
+  font-size: 9pt;
+  padding: 1mm 3mm;
+  border-radius: 1.5mm;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.summary-view .summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 0.3mm solid rgba(0,0,0,0.15);
+  border-radius: 1.5mm;
+  overflow: hidden;
+}
+.summary-view .summary-table thead { display: table-header-group; }
+.summary-view .summary-table thead th {
+  padding: 2mm;
+  color: #fff;
+  font-weight: 700;
+  font-size: 9.5pt;
+  text-align: center;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+  border-bottom: 0.3mm solid rgba(0,0,0,0.2);
+}
+.summary-view .summary-task {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.summary-view .summary-task > td {
+  padding: 2.2mm 3mm;
+  border-bottom: 0.2mm solid #eee;
+  font-size: 8.5pt;
+  line-height: 1.3;
+  vertical-align: top;
+}
+.summary-view .summary-task:last-child > td { border-bottom: none; }
+.summary-view .summary-task-done > td {
+  background: #c8f0d3 !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.summary-view .summary-task-progress > td {
+  background: #cfe2f3 !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.summary-view .summary-task .t-item ~ div { margin-top: 0.6mm; }
+.summary-view .summary-task .t-item {
+  font-size: 8.5pt; font-weight: 700; color: #2d3748;
+  word-wrap: break-word;
+}
+.summary-view .summary-task .t-num {
+  display: inline-block;
+  background: #1a2840;
+  color: #fff;
+  font-size: 7pt;
+  font-weight: 700;
+  padding: 0.3mm 1.4mm;
+  border-radius: 1mm;
+  margin-right: 1.5mm;
+  vertical-align: 0.4mm;
+  min-width: 3.5mm;
+  text-align: center;
+}
+.summary-view .summary-task .t-project {
+  font-size: 7.5pt; color: #4a5568;
+  word-wrap: break-word;
+}
+.summary-view .summary-task .t-time {
+  font-size: 7pt; color: #2d3748;
+}
+.summary-view .summary-task .t-time .t-arrow { margin: 0 1mm; color: #6b7280; }
+.summary-view .summary-task .t-duration {
+  font-size: 7pt; color: #8a93a4;
+}
+
+@media print {
+  body.printing-summary .topbar,
+  body.printing-summary .toolbar,
+  body.printing-summary .gantt-view,
+  body.printing-summary .completed-view,
+  body.printing-summary .progress-view,
+  body.printing-summary .modal-backdrop,
+  body.printing-summary .ctx-menu,
+  body.printing-summary .piece-tooltip,
+  body.printing-summary #undo-toast { display: none !important; }
+  /* @page margin (injetado em doSummary) cuida das margens em todas as páginas. */
+  body.printing-summary .summary-view { display: block !important; padding: 0 !important; }
+}
+
+/* ============================================================
+   EXPORT / DOCUMENTO OFICIAL (A4 landscape)
+   ============================================================ */
+.export-view {
+  display: none;
+  background: #fff;
+  color: #1a2840;
+  font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.export-view * {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.export-view .export-header {
+  border-bottom: 0.45mm solid #1a2840;
+  padding-bottom: 3mm;
+  margin-bottom: 5mm;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8mm;
+}
+.export-view .export-logo-wrap {
+  flex-shrink: 0;
+  width: 64mm;
+  height: 24mm;
+  overflow: hidden;
+  position: relative;
+}
+.export-view .export-logo-wrap img {
+  position: absolute;
+  width: 130%;
+  height: auto;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  display: block;
+}
+.export-view .export-header-right {
+  display: flex; flex-direction: column;
+  gap: 2.5mm;
+  align-items: flex-start;
+  text-align: left;
+}
+.export-view .export-title {
+  font-size: 15pt;
+  font-weight: 700;
+  color: #1a2840;
+  margin: 0;
+  letter-spacing: 0.2px;
+}
+.export-view .export-title .export-title-sep {
+  color: #8a93a4;
+  font-weight: 400;
+  margin: 0 2mm;
+}
+.export-view .export-subtitle {
+  font-size: 9pt;
+  color: #4a5568;
+  font-weight: 500;
+}
+.export-view .export-subtitle .export-subtitle-sep {
+  color: #8a93a4;
+  margin: 0 1.5mm;
+}
+.export-view .export-legend {
+  font-size: 7.5pt;
+  color: #4a5568;
+  display: flex;
+  gap: 5mm;
+  align-items: center;
+  justify-content: flex-start;
+}
+.export-view .export-legend .lg-swatch {
+  display: inline-block;
+  width: 4.5mm; height: 3mm;
+  border: 0.15mm solid #9aa0a8;
+  vertical-align: middle;
+  margin-right: 1.2mm;
+}
+.export-view .export-legend .lg-over { background: #ffd6d6 !important; }
+.export-view .export-legend .lg-under { background: #c8f0d3 !important; }
+.export-view .export-legend .lg-progress { background: #cfe2f3 !important; }
+.export-view .export-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8pt;
+  table-layout: fixed;
+}
+.export-view .export-table th {
+  background: #1a2840;
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  padding: 2.4mm 2mm;
+  font-size: 7.8pt;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border: 0.15mm solid #1a2840;
+}
+.export-view .export-table td {
+  border: 0.15mm solid #c8cfd9;
+  padding: 2.2mm 2mm;
+  vertical-align: middle;
+  text-align: center;
+  background: #fff;
+  color: #1a2840;
+}
+.export-view .export-table tr.ex-row-over td { background: #ffd6d6 !important; }
+.export-view .export-table tr.ex-row-under td { background: #c8f0d3 !important; }
+.export-view .export-table tr.ex-row-progress td { background: #cfe2f3 !important; }
+.export-view .export-table tr:nth-child(even):not(.ex-row-over):not(.ex-row-under):not(.ex-row-progress) td { background: #fbfcfd; }
+.export-view .ex-task-label {
+  font-weight: 700;
+  color: #1a2840;
+  word-wrap: break-word;
+  font-size: 8.5pt;
+  line-height: 1.3;
+}
+.export-view .ex-task-status {
+  font-size: 7pt;
+  color: #6b7280;
+  margin-top: 1mm;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 600;
+}
+.export-view .ex-task-status.done { color: #2f855a; }
+.export-view .ex-task-status.progress { color: #2b6cb0; }
+.export-view .ex-range {
+  font-weight: 600;
+  color: #1a2840;
+  word-wrap: break-word;
+  line-height: 1.35;
+}
+.export-view .ex-dur {
+  color: #4a5568;
+  font-size: 7.5pt;
+  margin-top: 0.6mm;
+}
+.export-view .ex-date {
+  font-weight: 600;
+  color: #1a2840;
+}
+.export-view .ex-tag {
+  font-size: 6.8pt;
+  color: #5E4D85;
+  font-style: italic;
+  margin-top: 0.6mm;
+  letter-spacing: 0.2px;
+}
+.export-view .ex-num {
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 9pt;
+  color: #1a2840;
+}
+.export-view .ex-notes-cell {
+  min-height: 14mm;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: #1a2840;
+  font-size: 8pt;
+  line-height: 1.45;
+  text-align: center;
+}
+.export-view .ex-empty {
+  color: #9aa0a8;
+  font-size: 7.5pt;
+  font-style: italic;
+}
+@media print {
+  body.printing-export .topbar,
+  body.printing-export .toolbar,
+  body.printing-export .gantt-view,
+  body.printing-export .progress-view,
+  body.printing-export .completed-view,
+  body.printing-export .summary-view,
+  body.printing-export .modal-backdrop,
+  body.printing-export .ctx-menu,
+  body.printing-export .piece-tooltip,
+  body.printing-export #undo-toast { display: none !important; }
+  body.printing-export .export-view { display: block !important; }
+  body.printing-export .export-table tr { page-break-inside: avoid; }
+  body.printing-export .export-table thead { display: table-header-group; }
+}
+
+/* ============================================================
+   PRINT — A3 LANDSCAPE
+   ============================================================ */
+@page {
+  size: A3 landscape;
+  margin: 15mm;              /* margem aplicada a TODAS as páginas (não só à primeira) */
+}
+
+@media print {
+  html, body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
+  .topbar, .toolbar, .completed-view, .modal-backdrop, .ctx-menu, .piece-tooltip { display: none !important; }
+  /* Margens vêm do @page; padding interno = 0 para evitar dupla margem */
+  .gantt-view { padding: 0 !important; overflow: visible !important; }
+  .gantt-wrap { border: none; border-radius: 0; box-shadow: none; }
+  .gantt-scroll { overflow: visible !important; }
+  /* Em modo print substituímos o grid por uma <table> real para o cabeçalho repetir em cada página */
+  .gantt-table {
+    display: block !important;
+    grid-template-columns: none !important;
+  }
+  .gantt-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  .gantt-print-table thead { display: table-header-group; }
+  .gantt-print-table thead th {
+    padding: 0;
+    vertical-align: bottom;
+    font-weight: 700;
+  }
+  .gantt-print-table tbody tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .gantt-print-table td {
+    padding: 0;
+    vertical-align: middle;
+  }
+  .gantt-print-table tr.gantt-print-group td {
+    background: #e3eaf3 !important;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    font-size: 8.5pt; font-weight: 700; color: #1a2840;
+    text-transform: uppercase; letter-spacing: 0.3pt;
+    padding: 0.8mm 2mm;
+    border-top: 0.3mm solid #c3cfdd; border-bottom: 0.3mm solid #c3cfdd;
+    break-after: avoid; page-break-after: avoid;
+  }
+  .gantt-print-table td.piece-cell {
+    padding: 0.5mm 2mm;
+  }
+  .gantt-print-table td.row-area-cell {
+    position: relative;
+  }
+  .gantt-print-table .row-area {
+    position: relative;
+  }
+  :root {
+    --slot-px: var(--print-slot, 1.5mm);
+    --row-h: 14mm;
+    --header-h: 10mm;
+    --person-col: var(--print-person-col, 50mm);
+  }
+  .piece-cell { padding: 1.5mm 2.5mm; }
+  .piece-cell .piece-cell-block {
+    justify-content: space-between;     /* distribui as 3 secções igualmente em altura */
+    line-height: 1.25;
+  }
+  /* Em impressão, o projeto passa para a sua própria linha abaixo do item */
+  .piece-cell .piece-cell-label {
+    font-size: 9pt; font-weight: 600; color: #2d3748;
+    display: flex; flex-direction: column;
+    white-space: normal;
+    line-height: 1.2;
+  }
+  .piece-cell .piece-cell-label .pc-project {
+    font-size: 8pt; font-weight: 500; color: #4a5568;
+    margin-top: 0;
+  }
+  .piece-cell .piece-cell-time { font-size: 7.5pt; }
+  .piece-cell .piece-cell-time .t-start,
+  .piece-cell .piece-cell-time .t-arrow,
+  .piece-cell .piece-cell-time .t-end { color: #2d3748; }
+  .piece-cell .piece-cell-duration { font-size: 7.5pt; color: #8a93a4; }
+  .piece-cell .piece-cell-pct { font-size: inherit; color: #2b6cb0; font-weight: 600; }
+  .piece-cell { padding: 0.5mm 2mm; }
+  .day-header-row { height: 6mm; }
+  .hour-header-row { height: 4mm; }
+  .day-head-cell { font-size: 9.5pt; font-weight: 700; flex-shrink: 0; }
+  .hour-head-cell { font-size: 7pt; flex-shrink: 0; padding: 0 0 0 1px; justify-content: flex-start; }
+  .person-head { font-size: 9.5pt; padding: 1.5mm; }
+  .piece { font-size: 8.5pt; padding: 0.5mm 1.5mm; box-shadow: none; border-radius: 1mm; }
+  .piece .piece-resize { display: none; }
+  .today-line { display: none !important; }
+  .day-head-cell .sat-toggle { display: none !important; }
+  .weekend-bg, .day-head-cell.weekend { background: #d6dce5 !important; }
+  .print-title {
+    display: block !important;
+    font-size: 14pt; font-weight: 700; color: #1a2840;
+    padding: 0 0 1.5mm 0;
+  }
+  .print-meta {
+    display: block !important;
+    font-size: 9pt; color: #4a5568;
+    padding-bottom: 3mm;
+  }
+}
+
+.print-title, .print-meta { display: none; }
+
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand"><a href="index.html" class="brand-back" title="Voltar à lista de projetos">← Projetos</a> <span class="sep">|</span><span class="brand-project" id="brand-project" contenteditable="true" spellcheck="false" data-placeholder="nome do projeto" title="Clica para editar o nome do projeto"></span></div>
+    <div class="tabs" id="view-tabs">
+      <button class="tab active" data-view="planned">Gantt Planeado</button>
+      <button class="tab" data-view="real">Gantt Real</button>
+      <button class="tab" data-view="progress">Progresso</button>
+    </div>
+    <div class="tabs tabs-right" id="view-tabs-right">
+      <button class="tab" data-view="completed">Concluídos</button>
+      <span class="save-status pending" id="save-status">A carregar…</span>
+      <button class="tab tab-icon" id="btn-settings" title="Menu">⚙</button>
+    </div>
+  </header>
+
+  <div class="toolbar" id="toolbar-gantt">
+    <div class="toolbar-row toolbar-row-3col">
+      <div class="toolbar-group toolbar-group-left">
+        <button id="btn-today" class="primary">Hoje</button>
+      </div>
+      <div class="toolbar-group toolbar-group-center" id="toolbar-row-create">
+        <button id="btn-new-piece">+ Nova Tarefa</button>
+        <button id="btn-unplanned">Por Planear <span id="unplanned-badge" class="unplanned-badge" hidden></span></button>
+        <button id="btn-groups" title="Criar grupos e definir a sua ordem">Grupos</button>
+      </div>
+      <div class="toolbar-group toolbar-group-right">
+        <button id="btn-print">A3 PDF</button>
+        <button id="btn-summary">Resumo PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="gantt-view" id="view-gantt">
+    <div class="gantt-wrap">
+      <div class="print-title" id="print-title"></div>
+      <div class="print-meta" id="print-meta"></div>
+      <div class="gantt-scroll" id="gantt-scroll">
+        <div class="gantt-table" id="gantt-table"></div>
+      </div>
+    </div>
+  </main>
+
+  <main class="progress-view" id="view-progress" hidden>
+    <div class="progress-header" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+      <div class="progress-title" id="progress-title" style="margin:0;flex:1;">Progresso do Projeto</div>
+      <button id="progress-export" class="completed-tool-btn" title="Imprimir documento oficial de extração (A4)">Extração / Documento</button>
+    </div>
+    <div id="progress-content"></div>
+  </main>
+
+  <!-- Container do resumo (mostrado apenas durante print do resumo) -->
+  <div class="summary-view" id="summary-view" hidden></div>
+
+  <!-- Container de extração / documento oficial (mostrado apenas durante print) -->
+  <div class="export-view" id="export-view" hidden></div>
+
+  <main class="completed-view" id="view-completed" hidden>
+    <div class="completed-wrap">
+      <div class="completed-header" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+        <div class="completed-title" id="completed-title" style="margin:0;flex:1;">Tarefas concluídas</div>
+        <button id="completed-sort" class="completed-tool-btn" title="Alternar ordem por data de conclusão">↓ Mais recente primeiro</button>
+        <button id="completed-select-all" class="completed-tool-btn">Selecionar página</button>
+        <button id="completed-delete" class="completed-tool-btn danger" disabled>Apagar selecionadas</button>
+      </div>
+      <table class="completed-table">
+        <thead>
+          <tr>
+            <th style="width:28px;text-align:center;"><input type="checkbox" id="completed-master-cb" title="Selecionar página"></th>
+            <th>Concluído em</th>
+            <th>Tarefa</th>
+            <th>Período Real</th>
+            <th>Duração Real</th>
+            <th style="text-align:center;">Concluído LN</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="completed-tbody"></tbody>
+      </table>
+      <div class="completed-pager" id="completed-pager"></div>
+    </div>
+  </main>
+
+</div>
+
+<!-- Modal: Nova / Editar Tarefa -->
+<div class="modal-backdrop" id="modal-piece" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <span id="piece-modal-title">Nova Tarefa</span>
+      <button class="close" data-close>×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field" style="display:flex;gap:24px;align-items:center;margin-bottom:14px;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:12.5px;color:#2d3748;margin:0;">
+          <input type="checkbox" id="pf-unplanned"> Por planear (sem data)
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;cursor:pointer;color:#2d3748;margin:0;">
+          <input type="checkbox" id="pf-indicative" style="cursor:pointer;"> Indicativo
+        </label>
+      </div>
+      <div class="field">
+        <label>Tarefa</label>
+        <input type="text" id="pf-code" placeholder="Ex.: Quadro Elétrico">
+      </div>
+      <div class="field">
+        <label>Grupo</label>
+        <select id="pf-group"></select>
+      </div>
+      <div id="pf-tabs-container">
+        <div class="modal-tabs" id="pf-tabs">
+          <button type="button" class="mtab active" data-mtab="planned">Planeado</button>
+          <button type="button" class="mtab" data-mtab="real">Real</button>
+        </div>
+        <div class="mtab-panel" data-mtab-panel="planned">
+          <div class="field-row">
+            <div class="field pf-date-field">
+              <label>Data início</label>
+              <input type="date" id="pf-planned-date">
+            </div>
+            <div class="field pf-hour-field">
+              <label>Hora início</label>
+              <select id="pf-planned-hour"></select>
+            </div>
+            <div class="field pf-duration-field">
+              <label>Duração (horas)</label>
+              <input type="number" id="pf-planned-duration" min="0.5" step="0.5" value="2">
+            </div>
+          </div>
+          <div class="field-row pf-end-row">
+            <div class="field">
+              <label>Data fim</label>
+              <input type="date" id="pf-planned-end-date" disabled>
+            </div>
+            <div class="field">
+              <label>Hora fim</label>
+              <input type="text" id="pf-planned-end-hour" disabled>
+            </div>
+          </div>
+        </div>
+        <div class="mtab-panel" data-mtab-panel="real" hidden>
+          <div class="field-row">
+            <div class="field pf-date-field">
+              <label>Data início</label>
+              <input type="date" id="pf-real-date">
+            </div>
+            <div class="field pf-hour-field">
+              <label>Hora início</label>
+              <select id="pf-real-hour"></select>
+            </div>
+            <div class="field pf-duration-field">
+              <label>Duração (horas)</label>
+              <input type="number" id="pf-real-duration" min="0.5" step="0.5" value="2">
+            </div>
+          </div>
+          <div class="field-row pf-end-row">
+            <div class="field">
+              <label>Data fim</label>
+              <input type="date" id="pf-real-end-date" disabled>
+            </div>
+            <div class="field">
+              <label>Hora fim</label>
+              <input type="text" id="pf-real-end-hour" disabled>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="field" id="pf-unplanned-only" hidden>
+        <label>Duração (horas)</label>
+        <input type="number" id="pf-unplanned-duration" min="0.5" step="0.5" value="2">
+      </div>
+      <div class="field">
+        <label>Notas (opcional)</label>
+        <textarea id="pf-notes" rows="2" placeholder="Cliente, observações, etc."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="pf-sync-real" style="margin-right:auto;" hidden>Sincronização com real</button>
+      <button id="pf-delete" class="danger" hidden>Apagar</button>
+      <button data-close>Cancelar</button>
+      <button id="pf-save" class="primary">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Por Planear -->
+<div class="modal-backdrop" id="modal-unplanned" hidden>
+  <div class="modal" style="width:560px;">
+    <div class="modal-header">
+      <span>Tarefas por planear</span>
+      <button class="close" data-close>×</button>
+    </div>
+    <div class="modal-body">
+      <input type="text" id="unplanned-filter" placeholder="Procurar por tarefa…" style="width:100%;padding:7px 10px;border:1px solid #c8cfd9;border-radius:4px;margin-bottom:12px;font-size:13px;">
+      <div id="unplanned-list" style="max-height:420px;overflow:auto;border:1px solid #e2e6ed;border-radius:4px;"></div>
+      <div class="field-hint" style="margin-top:10px;">Clica em <b>Editar</b> para atribuir uma data. Ao guardar a data, a tarefa entra automaticamente no planeamento.</div>
+    </div>
+    <div class="modal-footer">
+      <button data-close class="primary">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Grupos -->
+<div class="modal-backdrop" id="modal-groups" hidden>
+  <div class="modal" style="width:560px;">
+    <div class="modal-header">
+      <span>Grupos do projeto</span>
+      <button class="close" data-close>×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:10px;">A ordem aqui é a ordem no Gantt. Arrasta ou usa ▲▼. Dentro de cada grupo as tarefas continuam ordenadas por data.</div>
+      <div id="groups-list" style="max-height:360px;overflow:auto;border:1px solid #e2e6ed;border-radius:4px;"></div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <input type="text" id="group-new-name" placeholder="Nome do novo grupo (ex.: GV - Máquina)" style="flex:1;padding:7px 10px;border:1px solid #c8cfd9;border-radius:4px;">
+        <button id="group-add" class="primary">+ Adicionar</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button data-close class="primary">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Print -->
+<div class="modal-backdrop" id="modal-print" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <span>Imprimir / PDF</span>
+      <button class="close" data-close>×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field">
+          <label>De</label>
+          <input type="date" id="print-from">
+        </div>
+        <div class="field">
+          <label>Até (inclusivo)</label>
+          <input type="date" id="print-to">
+        </div>
+      </div>
+      <div class="field-hint" id="print-range-hint">Máximo 12 dias (2 semanas Seg-Sáb). Domingos excluídos. A3 horizontal preenchido sempre que possível.</div>
+      <div class="field" style="margin-top:14px;">
+        <label><input type="checkbox" id="print-hide-empty"> Esconder tarefas fora do intervalo</label>
+      </div>
+      <div class="field" style="margin-top:8px;">
+        <label><input type="checkbox" id="print-include-indicative" checked> Incluir tarefas indicativas</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button data-close>Cancelar</button>
+      <button id="print-go" class="primary">Imprimir / Guardar PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Resumo (selecionar tarefas) -->
+<div class="modal-backdrop" id="modal-summary" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <span>Resumo — Selecionar tarefas</span>
+      <button class="close" data-close>×</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+        <button id="summary-pick-all" style="background:#fff;border:1px solid #c8cfd9;padding:4px 10px;border-radius:4px;font-size:12px;">Todas</button>
+        <button id="summary-pick-none" style="background:#fff;border:1px solid #c8cfd9;padding:4px 10px;border-radius:4px;font-size:12px;">Nenhuma</button>
+        <label style="margin-left:auto;font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="summary-include-indicative" checked> Incluir tarefas indicativas
+        </label>
+      </div>
+      <div id="summary-people-list" style="border:1px solid #e2e6ed;border-radius:4px;max-height:340px;overflow:auto;"></div>
+      <div class="field-hint" style="margin-top:10px;">Apenas tarefas planeadas aparecem na lista. O resumo será impresso em A4 horizontal.</div>
+    </div>
+    <div class="modal-footer">
+      <button data-close>Cancelar</button>
+      <button id="summary-go" class="primary">Gerar Resumo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Extração / Documento (Progresso) -->
+<div class="modal-backdrop" id="modal-extract" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <span>Extração / Documento</span>
+      <button class="close" data-close>×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label><input type="checkbox" id="extract-include-indicative" checked> Incluir tarefas indicativas</label>
+      </div>
+      <div class="field-hint" style="margin-top:10px;">Documento oficial A4 horizontal com planeado vs real.</div>
+    </div>
+    <div class="modal-footer">
+      <button data-close>Cancelar</button>
+      <button id="extract-go" class="primary">Imprimir / Guardar PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Concluir Tarefa (confirmação de valores reais) -->
+<div class="modal-backdrop" id="modal-complete" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <span>Concluir Tarefa</span>
+      <button class="close" data-close>×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:14px;">Confirma os valores <b>reais</b> da execução. Os campos vêm pré-preenchidos com o planeado — ajusta se necessário.</div>
+      <div class="planned-summary">
+        <div class="ps-title">Planeado</div>
+        <div class="ps-row" id="cf-planned-info"></div>
+      </div>
+      <div class="real-section-title">Real</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Data início real</label>
+          <input type="date" id="cf-date">
+        </div>
+        <div class="field" id="cf-start-hour-field">
+          <label>Hora início real</label>
+          <select id="cf-start-hour"></select>
+        </div>
+      </div>
+      <div class="field-row" id="cf-end-row">
+        <div class="field">
+          <label>Data fim real</label>
+          <input type="date" id="cf-end-date">
+        </div>
+        <div class="field">
+          <label>Hora fim real</label>
+          <select id="cf-end-hour"></select>
+        </div>
+      </div>
+      <div class="field-hint" id="cf-duration-info" style="margin-top:6px;"></div>
+      <div class="field" style="margin-top:14px;">
+        <label>Notas (opcional)</label>
+        <textarea id="cf-notes" rows="2" placeholder="Notas da tarefa (partilhadas com o editor)."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button data-close>Cancelar</button>
+      <button id="cf-save" class="primary">Concluir</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/db.js"></script>
+<script>
+'use strict';
+
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const DEFAULT_PROJECT_LABEL = '';
+function getProjectLabel() { return (state.projectName && state.projectName.trim()) || ''; }
+const BASE_TITLE = 'Gestão de Projeto |';
+
+// Cor base das barras do gantt — uma para Planeado, outra para Real.
+const PIECE_COLOR = '#6B8EAF';            // Planeado (azul)
+const PIECE_COLOR_REAL = '#C97950';       // Real (laranja terracota, suave)
+const INDICATIVE_COLOR = '#D69E2E';
+
+function pieceColorForView(view) {
+  return view === 'real' ? PIECE_COLOR_REAL : PIECE_COLOR;
+}
+
+// Dia corrido 8h–17h (sem pausa de almoço) — 9 colunas de 1h, 18 meios-slots.
+const WORK_DAY_COLS = [
+  { kind:'work', label:'08h', spanSlots:2 },
+  { kind:'work', label:'09h', spanSlots:2 },
+  { kind:'work', label:'10h', spanSlots:2 },
+  { kind:'work', label:'11h', spanSlots:2 },
+  { kind:'work', label:'12h', spanSlots:2 },
+  { kind:'work', label:'13h', spanSlots:2 },
+  { kind:'work', label:'14h', spanSlots:2 },
+  { kind:'work', label:'15h', spanSlots:2 },
+  { kind:'work', label:'16h', spanSlots:2 }
+];
+
+// Configuração fixa do projeto — almoço 12:30-13:30 e horas incluídas nas extrações.
+const LUNCH_PRESET = '12:30-13:30';
+const INCLUDE_HOURS_IN_PRINT = true;
+
+const WORK_SLOTS_PER_DAY = 18;   // 9h × 2 (half-hours)
+const COL_UNITS = 2;             // each visual column is 2 slot-px units wide (= 1 hour visual)
+const DAY_WIDTH_UNITS = WORK_DAY_COLS.length * COL_UNITS;   // 18
+
+function dayWidthUnits() {
+  return DAY_WIDTH_UNITS;
+}
+
+/* ============================================================
+   STATE & PERSISTENCE
+   ============================================================ */
+let state = {
+  ui: { view: 'planned', completedPage: 1, overlay: false },
+  pieces: [],
+  workSaturdays: [],
+  groups: [],            // [{ id, name }] — a ordem do array é a ordem de apresentação
+  projectName: DEFAULT_PROJECT_LABEL
+};
+
+/* Garante que a peça tem os campos planeado/real coerentes.
+   Modelo:
+   - startDate/startSlot/durationSlots: valores REAIS (mutáveis)
+   - plannedStartDate/plannedStartSlot/plannedDurationSlots: valores PLANEADOS (imutáveis após criação)
+   - completedAt: quando concluída (peça mantém-se em state.pieces) */
+function ensurePieceShape(p) {
+  if (p.plannedStartDate === undefined && p.startDate) {
+    p.plannedStartDate = p.startDate;
+    p.plannedStartSlot = p.startSlot;
+    p.plannedDurationSlots = p.durationSlots;
+  }
+  if (p.startDate && (p.plannedStartDate === undefined)) {
+    p.plannedStartDate = p.startDate;
+    p.plannedStartSlot = p.startSlot;
+    p.plannedDurationSlots = p.durationSlots;
+  }
+}
+
+/* ------------------------------------------------------------
+   PERSISTÊNCIA NA CLOUD (Supabase) — um registo por projeto.
+   - Dados do projeto (tarefas, sábados, nome) → tabela projects
+   - Preferências de vista (separador ativo, página…) → localStorage, por projeto
+   ------------------------------------------------------------ */
+const PROJECT_ID = new URLSearchParams(location.search).get('id');
+const UI_KEY = 'gp_ui_' + PROJECT_ID;
+let projectRow = null;          // última versão conhecida do registo na BD
+let lastSavedPayload = '';      // JSON do que está gravado (evita gravações inúteis)
+let saveTimer = null;
+let saveInFlight = false;
+let saveQueued = false;
+let saveConflict = false;
+
+function currentPayload() {
+  return JSON.stringify({
+    name: (state.projectName || '').trim() || 'Sem nome',
+    data: { pieces: state.pieces, workSaturdays: state.workSaturdays, groups: state.groups }
+  });
+}
+
+function applyRowToState(row) {
+  projectRow = row;
+  const data = row.data || {};
+  state.pieces        = Array.isArray(data.pieces)        ? data.pieces        : [];
+  state.workSaturdays = Array.isArray(data.workSaturdays) ? data.workSaturdays : [];
+  state.groups        = Array.isArray(data.groups)        ? data.groups        : [];
+  state.projectName   = row.name || '';
+  // Migração: formato antigo com "completed" separado
+  if (Array.isArray(data.completed)) {
+    for (const c of data.completed) {
+      stripLegacyFields(c);
+      if (!c.completedAt) c.completedAt = new Date().toISOString();
+      state.pieces.push(c);
+    }
+  }
+  for (const p of state.pieces) {
+    stripLegacyFields(p);
+    ensurePieceShape(p);
+    normalizePieceStart(p);
+  }
+  lastSavedPayload = currentPayload();
+}
+
+async function loadState() {
+  try { state.ui = Object.assign(state.ui, JSON.parse(localStorage.getItem(UI_KEY)) || {}); } catch (e) {}
+  if (state.ui.view === 'gantt') state.ui.view = 'planned';
+  if (!PROJECT_ID) throw new Error('Nenhum projeto indicado.');
+  const row = await DB.getProject(PROJECT_ID);
+  if (!row) throw new Error('Projeto não encontrado (pode ter sido apagado).');
+  applyRowToState(row);
+}
+
+function setSaveStatus(kind, text) {
+  const el = document.getElementById('save-status');
+  if (!el) return;
+  el.className = 'save-status ' + kind;
+  el.textContent = text;
+}
+
+function saveState() {
+  try { localStorage.setItem(UI_KEY, JSON.stringify(state.ui)); } catch (e) {}
+  if (!projectRow || saveConflict) return;
+  if (currentPayload() === lastSavedPayload) return;
+  setSaveStatus('pending', 'Alterações por gravar…');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSave, 700);
+}
+
+async function flushSave() {
+  clearTimeout(saveTimer); saveTimer = null;
+  if (saveInFlight) { saveQueued = true; return; }
+  const payload = currentPayload();
+  if (payload === lastSavedPayload) { setSaveStatus('ok', 'Gravado'); return; }
+  saveInFlight = true;
+  setSaveStatus('pending', 'A gravar…');
+  try {
+    const row = await DB.updateProject(PROJECT_ID, JSON.parse(payload), projectRow.updated_at);
+    projectRow = row;
+    lastSavedPayload = payload;
+    setSaveStatus('ok', 'Gravado');
+  } catch (e) {
+    if (e.conflict) {
+      saveConflict = true;
+      setSaveStatus('error', 'Conflito — alterado noutro lado');
+      showConflictBanner();
+    } else {
+      console.warn('Falha ao gravar:', e);
+      setSaveStatus('error', 'Erro ao gravar — a tentar de novo');
+      saveTimer = setTimeout(flushSave, 5000);
+    }
+  } finally {
+    saveInFlight = false;
+    if (saveQueued) { saveQueued = false; flushSave(); }
+  }
+}
+
+function hasUnsavedChanges() {
+  return !!projectRow && (saveInFlight || currentPayload() !== lastSavedPayload);
+}
+window.addEventListener('beforeunload', (e) => {
+  if (hasUnsavedChanges()) { flushSave(); e.preventDefault(); e.returnValue = ''; }
+});
+
+function showConflictBanner() {
+  if (document.getElementById('conflict-banner')) return;
+  const b = document.createElement('div');
+  b.id = 'conflict-banner';
+  b.className = 'conflict-banner';
+  b.innerHTML = `<span><b>Este projeto foi alterado por outra pessoa enquanto o tinhas aberto.</b>
+    As tuas últimas alterações não foram gravadas.</span>
+    <button id="cb-reload" class="primary">Recarregar versão atual</button>
+    <button id="cb-overwrite">Manter as minhas (substituir)</button>`;
+  document.body.prepend(b);
+  b.querySelector('#cb-reload').addEventListener('click', () => location.reload());
+  b.querySelector('#cb-overwrite').addEventListener('click', async () => {
+    if (!confirm('Substituir a versão gravada pela tua? As alterações da outra pessoa perdem-se.')) return;
+    try {
+      const fresh = await DB.getProject(PROJECT_ID);
+      projectRow.updated_at = fresh.updated_at;
+      saveConflict = false;
+      b.remove();
+      await flushSave();
+    } catch (e) { alert('Falha: ' + e.message); }
+  });
+}
+
+function uid() {
+  return 'p-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
+/* Limpa campos do modelo antigo (persons / person) se existirem. */
+function stripLegacyFields(p) {
+  if ('persons' in p) delete p.persons;
+  if ('person' in p) delete p.person;
+}
+
+/* ============================================================
+   HISTÓRICO / UNDO (Ctrl+Z) — até 15 passos
+   ============================================================ */
+const UNDO_MAX = 15;
+const undoStack = [];
+function snapshotState() {
+  return {
+    pieces:        JSON.parse(JSON.stringify(state.pieces)),
+    workSaturdays: (state.workSaturdays || []).slice(),
+    groups:        JSON.parse(JSON.stringify(state.groups || [])),
+    projectName:   state.projectName
+  };
+}
+function pushHistory() {
+  undoStack.push(snapshotState());
+  if (undoStack.length > UNDO_MAX) undoStack.shift();
+}
+function undo() {
+  if (undoStack.length === 0) {
+    showToast('Nada para desfazer');
+    return;
+  }
+  const snap = undoStack.pop();
+  state.pieces        = snap.pieces;
+  state.workSaturdays = snap.workSaturdays;
+  if (snap.groups) state.groups = snap.groups;
+  if (snap.projectName !== undefined) state.projectName = snap.projectName;
+  saveState();
+  refreshProjectLabel();
+  if (!$('#modal-groups').hidden) renderGroupsList();
+  if (state.ui.view === 'completed') renderCompleted();
+  else renderGantt();
+  updateUnplannedBadge();
+  showToast('Ação desfeita');
+}
+let toastTimer = null;
+function showToast(msg) {
+  let t = document.getElementById('undo-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'undo-toast';
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a2840;color:#fff;padding:8px 16px;border-radius:4px;font-size:13px;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.3);opacity:0;transition:opacity 150ms;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.opacity = '0'; }, 1400);
+}
+document.addEventListener('keydown', (e) => {
+  const active = document.activeElement;
+  const inEditable = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
+    if (inEditable) return;
+    e.preventDefault();
+    undo();
+    return;
+  }
+  // SHIFT+G — alterna overlay da vista oposta (visualiza ambas as vistas em simultâneo)
+  if (e.shiftKey && (e.key === 'G' || e.key === 'g') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (inEditable) return;
+    if (state.ui.view !== 'planned' && state.ui.view !== 'real') return;
+    e.preventDefault();
+    state.ui.overlay = !state.ui.overlay;
+    saveState();
+    renderGantt();
+    showToast(state.ui.overlay ? 'Overlay da vista oposta: ON' : 'Overlay da vista oposta: OFF');
+  }
+});
+
+/* ============================================================
+   DATE HELPERS
+   ============================================================ */
+function parseDate(iso) {
+  // iso = 'YYYY-MM-DD'
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function fmtDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function fmtDatePt(d) {
+  const day = String(d.getDate()).padStart(2, '0');
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${day}/${m}/${d.getFullYear()}`;
+}
+function fmtDateShort(d) {
+  // "21/05" — sem ano
+  return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function addDays(d, n) {
+  const nd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  nd.setDate(nd.getDate() + n);
+  return nd;
+}
+function diffDays(a, b) {
+  const ma = new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime();
+  const mb = new Date(b.getFullYear(), b.getMonth(), b.getDate()).getTime();
+  return Math.round((mb - ma) / 86400000);
+}
+function isWeekend(d) { const dow = d.getDay(); return dow === 0 || dow === 6; }
+function sameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const MONTH_LABELS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+function dayLabel(d) { return `${DAY_LABELS[d.getDay()]} ${String(d.getDate()).padStart(2,'0')} ${MONTH_LABELS[d.getMonth()]}`; }
+
+/* ============================================================
+   SLOT/HOUR HELPERS
+   Each "slot" = 30 minutes within a work day.
+   ============================================================ */
+function slotToHourLabel(slot) {
+  const mins = 8 * 60 + slot * 30;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+
+function slotToXWithinDay(slot) {
+  let x = 0, slotIdx = 0;
+  for (const col of WORK_DAY_COLS) {
+    if (col.kind === 'lunch') {
+      if (slot >= slotIdx) x += COL_UNITS;
+      continue;
+    }
+    const spanSlots = col.spanSlots;
+    if (slot < slotIdx + spanSlots) {
+      return x + (slot - slotIdx) * (COL_UNITS / spanSlots);
+    }
+    x += COL_UNITS;
+    slotIdx += spanSlots;
+  }
+  return x;
+}
+
+function xWithinDayToSlot(xUnits, maxSlot) {
+  if (maxSlot === undefined) maxSlot = WORK_SLOTS_PER_DAY - 1;
+  let best = 0, bestDist = Infinity;
+  for (let s = 0; s <= WORK_SLOTS_PER_DAY; s++) {
+    const sX = slotToXWithinDay(s);
+    const d = Math.abs(sX - xUnits);
+    if (d < bestDist) { bestDist = d; best = s; }
+  }
+  return Math.max(0, Math.min(maxSlot, best));
+}
+
+function absoluteSlot(date, slot, refDate) {
+  return diffDays(refDate, date) * dayWidthUnits() + slotToXWithinDay(slot);
+}
+function fromAbsoluteSlot(absUnits, refDate) {
+  const dayU = dayWidthUnits();
+  const days = Math.floor(absUnits / dayU);
+  const within = absUnits - days * dayU;
+  return { date: addDays(refDate, days), slot: xWithinDayToSlot(within) };
+}
+
+function hoursToSlots(h) { return Math.max(1, Math.round(h * 2)); }
+function slotsToHours(s) { return s / 2; }
+
+function formatHourLabel(slot) {
+  const [h, m] = slotToHourLabel(slot).split(':').map(Number);
+  return m === 0 ? h + 'h' : h + ':' + String(m).padStart(2, '0') + 'h';
+}
+
+/* Slots considerados "almoço". Sábados não têm almoço. */
+function isLunchSlot(slot, date) {
+  if (date && date.getDay() === 6) return false;
+  if (LUNCH_PRESET === '12-13')        return slot === 8 || slot === 9;
+  if (LUNCH_PRESET === '12:30-13:30')  return slot === 9 || slot === 10;
+  return false;
+}
+
+/* Sábados ativos — lista de datas (YYYY-MM-DD). */
+function getWorkSaturdays() {
+  if (!state.workSaturdays) state.workSaturdays = [];
+  return state.workSaturdays;
+}
+function isSaturdayActive(date) {
+  return getWorkSaturdays().includes(fmtDate(date));
+}
+function toggleSaturday(date) {
+  pushHistory();
+  const arr = getWorkSaturdays();
+  const key = fmtDate(date);
+  const idx = arr.indexOf(key);
+  const wasActive = idx !== -1;
+  if (wasActive) arr.splice(idx, 1); else arr.push(key);
+  if (wasActive) {
+    for (const p of state.pieces) {
+      normalizePieceStart(p);
+    }
+  }
+  saveState();
+  renderGantt();
+}
+
+function formatDuration(slots) {
+  const SLOTS_PER_DAY = 16;
+  const fmtH = (h) => {
+    if (h === Math.floor(h)) return h + 'h';
+    const wh = Math.floor(h);
+    const mins = Math.round((h - wh) * 60);
+    return wh + ':' + String(mins).padStart(2, '0') + 'h';
+  };
+  if (slots <= SLOTS_PER_DAY) return fmtH(slots / 2);
+  const days = Math.floor(slots / SLOTS_PER_DAY);
+  const remSlots = slots % SLOTS_PER_DAY;
+  if (remSlots === 0) return days + 'd';
+  // Usa "e" em vez de "+" para não colidir com o sinal nas colunas de desvio (ex.: "+1d e 2h").
+  return days + 'd e ' + fmtH(remSlots / 2);
+}
+
+function isNonWorkingDay(date) {
+  const dow = date.getDay();
+  if (dow === 0) return true;
+  if (dow === 6 && !isSaturdayActive(date)) return true;
+  return false;
+}
+
+const SAT_LOCK_SLOT = 10;
+function isLockedSlot(date, slot) {
+  if (date.getDay() !== 6) return false;
+  if (!isSaturdayActive(date)) return false;
+  return slot >= SAT_LOCK_SLOT;
+}
+
+function snapStartForward(date, slot) {
+  let d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  let s = slot;
+  let safety = 0;
+  while (safety++ < 100) {
+    if (isNonWorkingDay(d)) { d = addDays(d, 1); s = 0; continue; }
+    if (isLockedSlot(d, s)) { d = addDays(d, 1); s = 0; continue; }
+    if (isLunchSlot(s, d)) { s++; continue; }
+    break;
+  }
+  return { date: d, slot: s };
+}
+
+function normalizePieceStart(piece) {
+  if (!piece.startDate) return;
+  const sn = snapStartForward(parseDate(piece.startDate), piece.startSlot);
+  piece.startDate = fmtDate(sn.date);
+  piece.startSlot = sn.slot;
+  if (piece.plannedStartDate) {
+    const snP = snapStartForward(parseDate(piece.plannedStartDate), piece.plannedStartSlot);
+    piece.plannedStartDate = fmtDate(snP.date);
+    piece.plannedStartSlot = snP.slot;
+  }
+}
+
+/* Retorna os valores (data/slot/duração) da peça para a vista pedida.
+   view: 'planned' | 'real' (default 'real'). */
+function fieldsForView(piece, view) {
+  if (view === 'planned') {
+    return {
+      startDate: piece.plannedStartDate || piece.startDate,
+      startSlot: (piece.plannedStartSlot != null) ? piece.plannedStartSlot : piece.startSlot,
+      durationSlots: piece.plannedDurationSlots || piece.durationSlots
+    };
+  }
+  return {
+    startDate: piece.startDate,
+    startSlot: piece.startSlot,
+    durationSlots: piece.durationSlots
+  };
+}
+
+/* Devolve uma "vista" da peça com os valores da vista pedida.
+   Útil para passar a funções de rendering que leem piece.startDate/Slot/Duration. */
+function pieceForView(piece, view) {
+  const f = fieldsForView(piece, view);
+  return Object.assign({}, piece, f);
+}
+
+function currentView() {
+  return state.ui.view === 'real' ? 'real' : 'planned';
+}
+
+/* Próximo slot disponível depois da última tarefa planeada (ou agora se não houver). */
+function findNextAvailableSlot() {
+  const planned = state.pieces.filter(p => p.startDate);
+  if (planned.length === 0) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const sn = snapStartForward(today, 0);
+    return { date: sn.date, slot: sn.slot };
+  }
+  const ref = new Date(2000, 0, 1);
+  let latestAbs = -Infinity;
+  let latestEnd = null;
+  for (const p of planned) {
+    const e = pieceEnd(p);
+    const a = diffDays(ref, e.date) * WORK_SLOTS_PER_DAY + e.slot;
+    if (a > latestAbs) { latestAbs = a; latestEnd = e; }
+  }
+  const sn = snapStartForward(latestEnd.date, latestEnd.slot);
+  return { date: sn.date, slot: sn.slot };
+}
+
+function pieceEnd(piece, view) {
+  const f = view ? fieldsForView(piece, view) : { startDate: piece.startDate, startSlot: piece.startSlot, durationSlots: piece.durationSlots };
+  if (piece.indicative && f.startDate) {
+    const d = parseDate(f.startDate);
+    const endSlot = (d.getDay() === 6 && isSaturdayActive(d)) ? SAT_LOCK_SLOT : WORK_SLOTS_PER_DAY;
+    return { date: d, slot: endSlot };
+  }
+  if (!f.startDate) return { date: new Date(), slot: 0 };
+  let d = parseDate(f.startDate);
+  let s = f.startSlot;
+  let remaining = f.durationSlots;
+  let safety = 0;
+  while (remaining > 0 && safety++ < 10000) {
+    if (s >= WORK_SLOTS_PER_DAY) { d = addDays(d, 1); s = 0; continue; }
+    if (isNonWorkingDay(d)) { d = addDays(d, 1); s = 0; continue; }
+    if (isLockedSlot(d, s)) { d = addDays(d, 1); s = 0; continue; }
+    if (isLunchSlot(s, d)) { s++; continue; }
+    remaining--;
+    s++;
+  }
+  return { date: d, slot: s };
+}
+
+function countWorkSlots(startDate, startSlot, endDate, endSlot) {
+  let count = 0;
+  let d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  let s = startSlot;
+  const endAbs = diffDays(startDate, endDate) * WORK_SLOTS_PER_DAY + endSlot;
+  let safety = 0;
+  while (safety++ < 10000) {
+    const curAbs = diffDays(startDate, d) * WORK_SLOTS_PER_DAY + s;
+    if (curAbs >= endAbs) break;
+    if (s >= WORK_SLOTS_PER_DAY) { d = addDays(d, 1); s = 0; continue; }
+    if (isNonWorkingDay(d)) { d = addDays(d, 1); s = 0; continue; }
+    if (isLockedSlot(d, s)) { d = addDays(d, 1); s = 0; continue; }
+    if (!isLunchSlot(s, d)) count++;
+    s++;
+  }
+  return count;
+}
+
+/* ============================================================
+   GANTT RANGE
+   ============================================================ */
+function ganttRange() {
+  const pieces = state.pieces.filter(p => p.startDate || p.plannedStartDate);
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  let start, end;
+  if (pieces.length === 0) {
+    start = addDays(today, -1);
+    end = addDays(today, 14);
+  } else {
+    let minD = null, maxD = null;
+    for (const p of pieces) {
+      for (const v of ['planned', 'real']) {
+        const f = fieldsForView(p, v);
+        if (!f.startDate) continue;
+        const s = parseDate(f.startDate);
+        const e = pieceEnd(p, v).date;
+        if (!minD || s < minD) minD = s;
+        if (!maxD || e > maxD) maxD = e;
+      }
+    }
+    start = minD;
+    end = addDays(maxD, 5);
+    if (today > end) end = addDays(today, 5);
+  }
+  return { start, end };
+}
+
+/* ============================================================
+   RENDERING — GANTT
+   ============================================================ */
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+function renderGantt() {
+  const view = currentView();
+  const ganttViewEl = $('#view-gantt');
+  ganttViewEl.classList.toggle('view-planned', view === 'planned');
+  ganttViewEl.classList.toggle('view-real', view === 'real');
+
+  const { start, end } = ganttRange();
+  const days = diffDays(start, end) + 1;
+  const slotPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--slot-px')) || 22;
+  const dayPx = dayWidthUnits() * slotPx;
+  const totalPx = days * dayPx;
+
+  const table = $('#gantt-table');
+  table.innerHTML = '';
+  table.style.minWidth = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--person-col')) + totalPx) + 'px';
+
+  // ----- HEADER -----
+  const headerPerson = document.createElement('div');
+  headerPerson.className = 'person-head';
+  headerPerson.textContent = 'TAREFA';
+  table.appendChild(headerPerson);
+
+  const timeHead = document.createElement('div');
+  timeHead.className = 'time-head';
+  timeHead.style.width = totalPx + 'px';
+
+  const dayRow = document.createElement('div');
+  dayRow.className = 'day-header-row';
+  const hourRow = document.createElement('div');
+  hourRow.className = 'hour-header-row';
+
+  for (let i = 0; i < days; i++) {
+    const d = addDays(start, i);
+    const dow = d.getDay();
+    const isSat = dow === 6;
+    const isSun = dow === 0;
+    const satActive = isSat && isSaturdayActive(d);
+    const shaded = isSun || (isSat && !satActive);
+    const dh = document.createElement('div');
+    dh.className = 'day-head-cell' + (shaded ? ' weekend' : '');
+    dh.style.width = dayPx + 'px';
+    if (isSat) {
+      const dateKey = fmtDate(d);
+      dh.innerHTML = `<span class="sat-toggle" data-date="${dateKey}" title="${satActive ? 'Sábado ativo — clica para excluir' : 'Sábado excluído — clica para incluir'}">${satActive ? '☑' : '☐'}</span>${escapeHtml(dayLabel(d))}`;
+      dh.querySelector('.sat-toggle').addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleSaturday(d);
+      });
+    } else {
+      dh.textContent = dayLabel(d);
+    }
+    dayRow.appendChild(dh);
+
+    let cumSlot = 0;
+    for (const col of WORK_DAY_COLS) {
+      const hc = document.createElement('div');
+      const isLunch = col.kind === 'lunch';
+      const colLocked = satActive && cumSlot >= SAT_LOCK_SLOT;
+      // Dom e Sáb inativos têm o dia inteiro "weekend" — propagar para as horas também.
+      const colShaded = shaded || colLocked;
+      hc.className = 'hour-head-cell' + (isLunch ? ' lunch' : '') + (colShaded ? ' weekend' : '');
+      hc.style.width = (COL_UNITS * slotPx) + 'px';
+      hc.textContent = col.label;
+      hourRow.appendChild(hc);
+      cumSlot += col.spanSlots || 0;
+    }
+    hourRow.lastElementChild.classList.add('day-end');
+  }
+  timeHead.appendChild(dayRow);
+  timeHead.appendChild(hourRow);
+  table.appendChild(timeHead);
+
+  // ----- BODY: flat list de tarefas, ordenadas no tempo (na vista actual) -----
+  const planned = state.pieces.filter(p => fieldsForView(p, view).startDate)
+    .sort((a, b) => {
+      const fa = fieldsForView(a, view);
+      const fb = fieldsForView(b, view);
+      return fa.startDate !== fb.startDate ? fa.startDate.localeCompare(fb.startDate) : fa.startSlot - fb.startSlot;
+    });
+
+  if (state.pieces.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.gridColumn = '1 / span 2';
+    empty.className = 'empty-state';
+    empty.innerHTML = '<b>Sem tarefas.</b><br>Use <b>+ Nova Tarefa</b> para começar a planear.';
+    table.appendChild(empty);
+    return;
+  }
+  if (planned.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.gridColumn = '1 / span 2';
+    empty.className = 'empty-state';
+    empty.innerHTML = '<b>Sem tarefas planeadas.</b><br>Todas as tarefas estão em <b>Por Planear</b>.';
+    table.appendChild(empty);
+    return;
+  }
+
+  // Grupos: secções pela ordem definida pelo utilizador; dentro de cada secção mantém-se a ordem por data.
+  // No Planeado mostram-se também grupos ainda vazios (para se verem logo após criados).
+  const sections = groupPieces(planned, view === 'planned');
+  const showGroupHeaders = sections.some(s => s.group);
+  const rows = [];
+  for (const s of sections) {
+    if (showGroupHeaders) rows.push({ header: s });
+    for (const p of s.pieces) rows.push({ piece: p });
+  }
+
+  for (const entry of rows) {
+    if (entry.header) {
+      const { group, pieces } = entry.header;
+      const gcell = document.createElement('div');
+      gcell.className = 'group-cell' + (group ? '' : ' no-group');
+      gcell.innerHTML = `<span class="group-name">${escapeHtml(group ? group.name : 'Sem grupo')}</span>`
+        + `<span class="group-count">${pieces.length ? pieces.length : 'vazio'}</span>`;
+      if (group && view === 'planned') {
+        gcell.title = 'Duplo clique ou botão direito para gerir grupos';
+        gcell.addEventListener('dblclick', openGroupsModal);
+        gcell.addEventListener('contextmenu', (e) => { e.preventDefault(); openGroupsModal(); });
+      }
+      table.appendChild(gcell);
+      const grow = document.createElement('div');
+      grow.className = 'group-row' + (group ? '' : ' no-group');
+      grow.style.width = totalPx + 'px';
+      table.appendChild(grow);
+      continue;
+    }
+    const piece = entry.piece;
+    const f = fieldsForView(piece, view);
+    const isCompleted = !!piece.completedAt;
+    const itemLabel = piece.code || piece.description || 'Tarefa';
+    const pStartDate = parseDate(f.startDate);
+    const cell = document.createElement('div');
+    cell.className = 'piece-cell'
+      + (isCompleted ? ' completed' : '')
+      + (piece.indicative ? ' indicative' : '')
+      + (view === 'real' ? ' view-real' : '')
+      + (isPieceInProgress(piece, view) ? ' in-progress' : '');
+    cell.dataset.pieceId = piece.id;
+    if (piece.indicative) {
+      const dateStr = fmtDateShort(pStartDate);
+      const cellTitle = `${itemLabel}  ·  ${dateStr}  ·  Indicativo${isCompleted ? '  ·  Concluída' : ''}`;
+      cell.innerHTML = `<div class="piece-cell-block" title="${escapeHtml(cellTitle)}">
+        <span class="piece-cell-label">${escapeHtml(itemLabel)}</span>
+        <span class="piece-cell-time"><span class="t-start">${escapeHtml(dateStr)}</span></span>
+      </div>`;
+    } else {
+      const pEndInfo = pieceEnd(piece, view);
+      const startStr = `${fmtDateShort(pStartDate)} ${formatHourLabel(f.startSlot)}`;
+      const endStr = `${fmtDateShort(pEndInfo.date)} ${formatHourLabel(pEndInfo.slot)}`;
+      const durStr = formatDuration(f.durationSlots);
+      const cellTitle = `${itemLabel}  ·  ${startStr} → ${endStr}  ·  ${durStr}${isCompleted ? '  ·  Concluída' : ''}`;
+      cell.innerHTML = `<div class="piece-cell-block" title="${escapeHtml(cellTitle)}">
+        <span class="piece-cell-label">${escapeHtml(itemLabel)}</span>
+        <span class="piece-cell-time"><span class="t-start">${escapeHtml(startStr)}</span><span class="t-arrow">→</span><span class="t-end">${escapeHtml(endStr)}</span></span>
+        <span class="piece-cell-duration">(${escapeHtml(durStr)})</span>
+      </div>`;
+    }
+    cell.style.cursor = 'pointer';
+    cell.addEventListener('click', (e) => {
+      if (e.detail > 1) return;
+      scrollToPiece(piece);
+    });
+    cell.addEventListener('dblclick', () => openPieceModal(piece.id));
+    cell.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openContextMenu(piece, e.clientX, e.clientY);
+    });
+    table.appendChild(cell);
+
+    const row = document.createElement('div');
+    row.className = 'row-area' + (state.ui.overlay ? ' has-overlay' : '');
+    row.style.width = totalPx + 'px';
+    row.dataset.pieceId = piece.id;
+
+    // Backgrounds (weekend + day separators + locked area em Sábados ativos)
+    for (let i = 0; i < days; i++) {
+      const d = addDays(start, i);
+      const dow = d.getDay();
+      const isSat = dow === 6;
+      const isSun = dow === 0;
+      const satActive = isSat && isSaturdayActive(d);
+      const shaded = isSun || (isSat && !satActive);
+      const dayX = i * dayPx;
+      if (shaded) {
+        const wkBg = document.createElement('div');
+        wkBg.className = 'weekend-bg';
+        wkBg.style.left = dayX + 'px';
+        wkBg.style.width = dayPx + 'px';
+        row.appendChild(wkBg);
+      } else if (satActive) {
+        const lockX = slotToXWithinDay(SAT_LOCK_SLOT) * slotPx;
+        const lockBg = document.createElement('div');
+        lockBg.className = 'weekend-bg';
+        lockBg.style.left = (dayX + lockX) + 'px';
+        lockBg.style.width = (dayPx - lockX) + 'px';
+        row.appendChild(lockBg);
+      }
+      const daySep = document.createElement('div');
+      daySep.className = 'day-sep';
+      daySep.style.left = (dayX + dayPx) + 'px';
+      row.appendChild(daySep);
+    }
+
+    // Hour separators
+    for (let i = 0; i < days; i++) {
+      const dayX = i * dayPx;
+      let xAcc = 0;
+      for (const col of WORK_DAY_COLS) {
+        xAcc += COL_UNITS * slotPx;
+        if (xAcc < dayPx) {
+          const sep = document.createElement('div');
+          sep.className = 'hour-sep';
+          sep.style.left = (dayX + xAcc) + 'px';
+          row.appendChild(sep);
+        }
+      }
+    }
+
+    // Today line
+    const today = new Date(); today.setHours(0,0,0,0);
+    if (today >= start && today <= end) {
+      const dayIdx = diffDays(start, today);
+      const now = new Date();
+      const slot = currentSlot(now);
+      const xWithin = slot === null ? 0 : slotToXWithinDay(slot) * slotPx;
+      const todayLine = document.createElement('div');
+      todayLine.className = 'today-line';
+      todayLine.style.left = (dayIdx * dayPx + xWithin) + 'px';
+      row.appendChild(todayLine);
+    }
+
+    // Segmentos da tarefa — barras "full" em dias úteis, "thin" em Dom/Sáb inativo.
+    renderPieceSegmentsForScreen(piece, row, start, dayPx, slotPx, days, view);
+
+    // Overlay (SHIFT+G): adiciona segmentos da vista OPOSTA, em cor/opacidade reduzida.
+    if (state.ui.overlay) {
+      const oppositeView = view === 'real' ? 'planned' : 'real';
+      renderPieceSegmentsForScreen(piece, row, start, dayPx, slotPx, days, oppositeView, true);
+    }
+
+    table.appendChild(row);
+  }
+}
+
+/* ============================================================
+   GRUPOS — título que agrupa tarefas dentro do projeto
+   ============================================================ */
+function getGroups() { if (!Array.isArray(state.groups)) state.groups = []; return state.groups; }
+function groupById(id) { return id ? (getGroups().find(g => g.id === id) || null) : null; }
+function groupNameOf(piece) { const g = groupById(piece && piece.groupId); return g ? g.name : ''; }
+
+/* Divide uma lista (já ordenada por data) em secções pela ordem dos grupos.
+   Tarefas sem grupo (ou com grupo apagado) ficam numa secção final "Sem grupo". */
+function groupPieces(list, includeEmptyGroups) {
+  const groups = getGroups();
+  const buckets = new Map(groups.map(g => [g.id, []]));
+  const none = [];
+  for (const p of list) {
+    const b = p.groupId ? buckets.get(p.groupId) : null;
+    (b || none).push(p);
+  }
+  const out = [];
+  for (const g of groups) {
+    const ps = buckets.get(g.id);
+    if (ps.length || includeEmptyGroups) out.push({ group: g, pieces: ps });
+  }
+  if (none.length) out.push({ group: null, pieces: none });
+  return out;
+}
+
+function createGroup(name) {
+  name = (name || '').replace(/\s+/g, ' ').trim();
+  if (!name) return null;
+  const existing = getGroups().find(g => g.name.toLowerCase() === name.toLowerCase());
+  if (existing) return existing;
+  const g = { id: 'g-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36), name };
+  getGroups().push(g);
+  return g;
+}
+
+function refreshAfterGroupChange() {
+  saveState();
+  if (state.ui.view === 'progress') renderProgress(); else renderGantt();
+  if (!$('#modal-groups').hidden) renderGroupsList();
+  if (!$('#modal-unplanned').hidden) renderUnplannedList();
+}
+
+function openGroupsModal() {
+  renderGroupsList();
+  $('#group-new-name').value = '';
+  $('#modal-groups').hidden = false;
+  setTimeout(() => $('#group-new-name').focus(), 30);
+}
+
+function renderGroupsList() {
+  const list = $('#groups-list');
+  const groups = getGroups();
+  if (!groups.length) {
+    list.innerHTML = '<div class="unplanned-empty">Ainda não há grupos. Cria o primeiro abaixo.</div>';
+    return;
+  }
+  list.innerHTML = groups.map((g, i) => {
+    const n = state.pieces.filter(p => p.groupId === g.id).length;
+    return `<div class="group-item" draggable="true" data-gid="${g.id}">
+      <span class="gi-handle" title="Arrastar para reordenar">⠿</span>
+      <span class="gi-pos">${i + 1}</span>
+      <input type="text" class="gi-name" value="${escapeHtml(g.name)}" title="Clica para mudar o nome">
+      <span class="gi-count">${n} tarefa${n === 1 ? '' : 's'}</span>
+      <button type="button" data-gact="up" title="Subir" ${i === 0 ? 'disabled' : ''}>▲</button>
+      <button type="button" data-gact="down" title="Descer" ${i === groups.length - 1 ? 'disabled' : ''}>▼</button>
+      <button type="button" data-gact="del" class="danger" title="Apagar grupo">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function moveGroup(fromIdx, toIdx) {
+  const groups = getGroups();
+  if (toIdx < 0 || toIdx >= groups.length || fromIdx === toIdx) return;
+  pushHistory();
+  const [g] = groups.splice(fromIdx, 1);
+  groups.splice(toIdx, 0, g);
+  refreshAfterGroupChange();
+}
+
+(function wireGroupsModal() {
+  const list = $('#groups-list');
+  list.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-gact]'); if (!btn) return;
+    const item = btn.closest('.group-item');
+    const groups = getGroups();
+    const idx = groups.findIndex(g => g.id === item.dataset.gid);
+    if (idx < 0) return;
+    if (btn.dataset.gact === 'up') moveGroup(idx, idx - 1);
+    else if (btn.dataset.gact === 'down') moveGroup(idx, idx + 1);
+    else if (btn.dataset.gact === 'del') {
+      const g = groups[idx];
+      const n = state.pieces.filter(p => p.groupId === g.id).length;
+      if (!confirm(`Apagar o grupo "${g.name}"?` + (n ? `\nAs ${n} tarefa(s) deste grupo ficam "Sem grupo" (não são apagadas).` : ''))) return;
+      pushHistory();
+      for (const p of state.pieces) if (p.groupId === g.id) delete p.groupId;
+      groups.splice(idx, 1);
+      refreshAfterGroupChange();
+    }
+  });
+  list.addEventListener('change', (e) => {
+    if (!e.target.classList.contains('gi-name')) return;
+    const g = groupById(e.target.closest('.group-item').dataset.gid); if (!g) return;
+    const name = e.target.value.replace(/\s+/g, ' ').trim();
+    if (!name) { e.target.value = g.name; return; }
+    if (name === g.name) return;
+    pushHistory();
+    g.name = name;
+    refreshAfterGroupChange();
+  });
+  list.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.classList.contains('gi-name')) e.target.blur();
+  });
+  // Arrastar para reordenar
+  let dragId = null;
+  list.addEventListener('dragstart', (e) => {
+    const item = e.target.closest('.group-item'); if (!item) return;
+    if (document.activeElement && document.activeElement.classList.contains('gi-name')) { e.preventDefault(); return; }
+    dragId = item.dataset.gid;
+    item.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', dragId); } catch (_) {}
+  });
+  list.addEventListener('dragover', (e) => {
+    if (!dragId) return;
+    e.preventDefault();
+    const over = e.target.closest('.group-item');
+    list.querySelectorAll('.group-item').forEach(el => el.classList.remove('drop-before', 'drop-after'));
+    if (over && over.dataset.gid !== dragId) {
+      const r = over.getBoundingClientRect();
+      over.classList.add(e.clientY < r.top + r.height / 2 ? 'drop-before' : 'drop-after');
+    }
+  });
+  list.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const over = e.target.closest('.group-item');
+    const groups = getGroups();
+    const from = groups.findIndex(g => g.id === dragId);
+    if (over && from >= 0 && over.dataset.gid !== dragId) {
+      let to = groups.findIndex(g => g.id === over.dataset.gid);
+      if (over.classList.contains('drop-after')) to++;
+      if (from < to) to--;
+      moveGroup(from, to);
+    }
+  });
+  list.addEventListener('dragend', () => {
+    dragId = null;
+    list.querySelectorAll('.group-item').forEach(el => el.classList.remove('dragging', 'drop-before', 'drop-after'));
+  });
+
+  const addGroup = () => {
+    const input = $('#group-new-name');
+    const name = input.value.trim();
+    if (!name) { input.focus(); return; }
+    if (getGroups().some(g => g.name.toLowerCase() === name.toLowerCase())) { alert('Já existe um grupo com esse nome.'); return; }
+    pushHistory();
+    createGroup(name);
+    input.value = '';
+    refreshAfterGroupChange();
+    input.focus();
+  };
+  $('#group-add').addEventListener('click', addGroup);
+  $('#group-new-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addGroup(); } });
+})();
+
+/* Preenche o <select> de grupo do modal da tarefa. */
+function fillGroupSelect(selectedId) {
+  const sel = $('#pf-group');
+  sel.innerHTML = '<option value="">— Sem grupo —</option>'
+    + getGroups().map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('')
+    + '<option value="__new__">+ Novo grupo…</option>';
+  sel.value = groupById(selectedId) ? selectedId : '';
+  sel.dataset.prev = sel.value;
+}
+$('#pf-group').addEventListener('change', (e) => {
+  const sel = e.target;
+  if (sel.value !== '__new__') { sel.dataset.prev = sel.value; return; }
+  const name = prompt('Nome do novo grupo:');
+  if (!name || !name.trim()) { sel.value = sel.dataset.prev || ''; return; }
+  pushHistory();
+  const g = createGroup(name);
+  saveState();
+  fillGroupSelect(g.id);
+});
+
+function currentSlot(now) {
+  const mins = now.getHours() * 60 + now.getMinutes();
+  if (mins < 8 * 60 || mins >= 17 * 60) return null;
+  return Math.floor((mins - 8*60) / 30);
+}
+
+function createPieceElement(piece, x, w, unit) {
+  unit = unit || 'px';
+  const minW = unit === 'mm' ? 4 : 20;
+  const isCompleted = !!piece.completedAt;
+  const el = document.createElement('div');
+  el.className = 'piece' + (piece.indicative ? ' indicative' : '') + (isCompleted ? ' completed' : '');
+  el.dataset.id = piece.id;
+  el.style.left = x + unit;
+  el.style.width = Math.max(minW, w) + unit;
+  if (!piece.indicative && !isCompleted) {
+    el.style.background = PIECE_COLOR;
+    el.style.borderColor = darken(PIECE_COLOR, 0.18);
+  }
+
+  const itemLabel = piece.code || piece.description || 'Tarefa';
+  const label = itemLabel;
+  const handle = piece.indicative ? '' : '<span class="piece-resize" title="Redimensionar"></span>';
+  el.innerHTML = `<span class="piece-label">${escapeHtml(label)}</span>${handle}`;
+
+  attachPieceInteractions(el, piece);
+  return el;
+}
+
+function createPieceSegment(piece, x, w, opts) {
+  opts = opts || {};
+  const view = opts.view || 'real';
+  const isOverlay = !!opts.isOverlay;
+  const minW = 2;
+  const isCompleted = !!piece.completedAt;
+  const el = document.createElement('div');
+  el.className = 'piece'
+    + (opts.isThin ? ' piece-thin' : '')
+    + (piece.indicative && !isOverlay ? ' indicative' : '')
+    + (isCompleted && !isOverlay ? ' completed' : '')
+    + (view === 'real' ? ' view-real' : '')
+    + (isOverlay ? ' piece-overlay' : '');
+  el.dataset.id = piece.id;
+  el.style.left = x + 'px';
+  el.style.width = Math.max(minW, w) + 'px';
+
+  if (isOverlay) {
+    // Overlay: cor sólida da vista representada, sempre — mesmo se concluído/indicativo.
+    // Inline !important vence sobre as regras !important de .completed / .indicative.
+    const color = pieceColorForView(view);
+    el.style.setProperty('background', color, 'important');
+    el.style.setProperty('border-color', darken(color, 0.18), 'important');
+  } else if (!piece.indicative && !isCompleted) {
+    const color = pieceColorForView(view);
+    el.style.background = color;
+    el.style.borderColor = darken(color, 0.18);
+  }
+
+  let inner = '';
+  if (opts.showLabel && !opts.isThin && !isOverlay) {
+    const itemLabel = piece.code || piece.description || 'Tarefa';
+    const label = itemLabel;
+    inner += `<span class="piece-label">${escapeHtml(label)}</span>`;
+  }
+  if (opts.showHandle && !opts.isThin && !piece.indicative && !isOverlay) {
+    inner += `<span class="piece-resize" title="Redimensionar"></span>`;
+  }
+  el.innerHTML = inner;
+
+  if (!isOverlay) attachPieceInteractions(el, piece, opts.view);
+  return el;
+}
+
+function renderPieceSegmentsForScreen(piece, row, ganttStart, dayPx, slotPx, daysInRange, view, isOverlay) {
+  view = view || 'real';
+  isOverlay = !!isOverlay;
+  // Peça sem dados para a vista pedida — nada a renderizar (ex.: overlay de tarefa sem planned).
+  const f = fieldsForView(piece, view);
+  if (!f.startDate) return;
+  const pStart = parseDate(f.startDate);
+  const pEndInfo = pieceEnd(piece, view);
+
+  let firstFullDayKey = null;
+  {
+    let probe = new Date(pStart.getFullYear(), pStart.getMonth(), pStart.getDate());
+    while (probe <= pEndInfo.date) {
+      if (!isNonWorkingDay(probe)) { firstFullDayKey = fmtDate(probe); break; }
+      probe = addDays(probe, 1);
+    }
+  }
+
+  let dCursor = new Date(pStart.getFullYear(), pStart.getMonth(), pStart.getDate());
+  const endCursor = new Date(pEndInfo.date.getFullYear(), pEndInfo.date.getMonth(), pEndInfo.date.getDate());
+  const created = [];
+  let safety = 0;
+
+  function addSegment(dayOff, startSlot, endSlot, isThin, isLastOfPiece, isFirstFullOfPiece) {
+    const segLeftPx  = dayOff * dayPx + slotToXWithinDay(startSlot) * slotPx;
+    const segRightPx = dayOff * dayPx + slotToXWithinDay(endSlot) * slotPx;
+    const segWidthPx = segRightPx - segLeftPx;
+    if (segWidthPx <= 0) return;
+    const seg = createPieceSegment(piece, segLeftPx, segWidthPx, {
+      isThin: isThin,
+      showLabel: isFirstFullOfPiece && !isThin,
+      showHandle: isLastOfPiece && !isThin,
+      view: view,
+      isOverlay: isOverlay
+    });
+    row.appendChild(seg);
+    created.push(seg);
+  }
+
+  while (dCursor <= endCursor && safety++ < 200) {
+    const dayOff = diffDays(ganttStart, dCursor);
+    if (dayOff < 0 || dayOff >= daysInRange) { dCursor = addDays(dCursor, 1); continue; }
+
+    const dayStartSlot = sameDay(dCursor, pStart) ? f.startSlot : 0;
+    const dayEndSlot   = sameDay(dCursor, pEndInfo.date) ? pEndInfo.slot : WORK_SLOTS_PER_DAY;
+    const nonWorking   = isNonWorkingDay(dCursor);
+    const isActiveSat  = dCursor.getDay() === 6 && isSaturdayActive(dCursor);
+    const isLastDay    = sameDay(dCursor, pEndInfo.date);
+
+    if (nonWorking) {
+      addSegment(dayOff, dayStartSlot, dayEndSlot, true, false, false);
+    } else if (isActiveSat) {
+      if (dayEndSlot <= SAT_LOCK_SLOT) {
+        addSegment(dayOff, dayStartSlot, dayEndSlot, false, isLastDay, false);
+      } else if (dayStartSlot >= SAT_LOCK_SLOT) {
+        addSegment(dayOff, dayStartSlot, dayEndSlot, true, false, false);
+      } else {
+        addSegment(dayOff, dayStartSlot, SAT_LOCK_SLOT, false, false, false);
+        addSegment(dayOff, SAT_LOCK_SLOT, dayEndSlot, true, false, false);
+      }
+    } else {
+      addSegment(dayOff, dayStartSlot, dayEndSlot, false, isLastDay, false);
+    }
+
+    dCursor = addDays(dCursor, 1);
+  }
+
+  created.forEach((seg, i) => {
+    if (i > 0) {
+      seg.style.borderTopLeftRadius = '0';
+      seg.style.borderBottomLeftRadius = '0';
+      seg.style.borderLeftWidth = '0';
+    }
+    if (i < created.length - 1) {
+      seg.style.borderTopRightRadius = '0';
+      seg.style.borderBottomRightRadius = '0';
+      seg.style.borderRightWidth = '0';
+    }
+  });
+
+  const groups = [];
+  let curGroup = null;
+  for (const seg of created) {
+    if (seg.classList.contains('piece-thin')) {
+      curGroup = null;
+    } else {
+      const l = parseFloat(seg.style.left);
+      const w = parseFloat(seg.style.width);
+      if (!curGroup) { curGroup = { left: l, right: l + w }; groups.push(curGroup); }
+      else { curGroup.right = l + w; }
+    }
+  }
+  for (const g of groups) g.width = g.right - g.left;
+
+  if (groups.length > 0 && !isOverlay) {
+    const itemLabel = piece.code || piece.description || 'Tarefa';
+    const label = itemLabel;
+    const parts = distributeLabelByWords(label, groups, '600 11.5px Arial');
+    for (let i = 0; i < parts.length; i++) {
+      const { text } = parts[i];
+      if (!text) continue;
+      const g = groups[i];
+      const overlay = document.createElement('div');
+      overlay.className = 'piece-label-overlay';
+      overlay.style.left = g.left + 'px';
+      overlay.style.width = g.width + 'px';
+      overlay.textContent = text;
+      row.appendChild(overlay);
+    }
+  }
+}
+
+function distributeLabelByWords(label, groups, font) {
+  if (groups.length === 1) return [{ text: label }];
+  const canvas = distributeLabelByWords._canvas || (distributeLabelByWords._canvas = document.createElement('canvas'));
+  const ctx = canvas.getContext('2d');
+  ctx.font = font;
+  const PADDING = 16;
+  const words = label.split(' ').filter(Boolean);
+  const result = [];
+  let wi = 0;
+  for (let g = 0; g < groups.length; g++) {
+    const isLast = g === groups.length - 1;
+    const avail = Math.max(0, groups[g].width - PADDING);
+    let text = '';
+    if (isLast) {
+      while (wi < words.length) text += (text ? ' ' : '') + words[wi++];
+    } else {
+      while (wi < words.length) {
+        const candidate = text ? text + ' ' + words[wi] : words[wi];
+        const cw = ctx.measureText(candidate).width;
+        if (cw <= avail) { text = candidate; wi++; }
+        else break;
+      }
+    }
+    result.push({ text });
+  }
+  return result;
+}
+
+function darken(hex, amt) {
+  const c = hex.replace('#','');
+  const num = parseInt(c, 16);
+  const r = Math.max(0, ((num >> 16) & 0xff) * (1 - amt));
+  const g = Math.max(0, ((num >> 8) & 0xff) * (1 - amt));
+  const b = Math.max(0, (num & 0xff) * (1 - amt));
+  return '#' + [r,g,b].map(v => Math.round(v).toString(16).padStart(2,'0')).join('');
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ============================================================
+   DRAG & RESIZE
+   ============================================================ */
+let drag = null;
+let tooltip = null;
+
+function attachPieceInteractions(el, piece, view) {
+  view = view || 'real';
+  el.addEventListener('mouseenter', (e) => showTooltip(piece, e));
+  el.addEventListener('mousemove', (e) => moveTooltip(e));
+  el.addEventListener('mouseleave', hideTooltip);
+
+  // Drag/resize disponível em ambas as vistas — modifica os campos da vista corrente.
+  el.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    hideTooltip();
+    pushHistory();
+    const isResize = e.target.classList.contains('piece-resize');
+    const slotPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--slot-px'));
+    const scroll = $('#gantt-scroll');
+    const f = fieldsForView(piece, view);
+    drag = {
+      piece, el, mode: isResize ? 'resize' : 'move',
+      view: view,
+      startX: e.clientX,
+      origStartSlot: f.startSlot,
+      origStartDate: f.startDate,
+      origDuration: f.durationSlots,
+      slotPx,
+      lastSnapKey: null,
+      scrollEl: scroll
+    };
+    el.classList.add('dragging');
+    e.preventDefault();
+  });
+
+  el.addEventListener('dblclick', () => openPieceModal(piece.id));
+  el.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    openContextMenu(piece, e.clientX, e.clientY);
+  });
+}
+
+/* Aplica alterações de campos à vista correcta da peça (planeado vs real).
+   Ao mexer no planeado, sincroniza também o real (planeado só é tocado 1x no início,
+   por isso o real deve seguir). O inverso não se aplica: mexer no real não toca no planeado. */
+function applyViewFields(piece, view, fields) {
+  if (view === 'planned') {
+    if ('startDate' in fields) { piece.plannedStartDate = fields.startDate; piece.startDate = fields.startDate; }
+    if ('startSlot' in fields) { piece.plannedStartSlot = fields.startSlot; piece.startSlot = fields.startSlot; }
+    if ('durationSlots' in fields) { piece.plannedDurationSlots = fields.durationSlots; piece.durationSlots = fields.durationSlots; }
+  } else {
+    if ('startDate' in fields) piece.startDate = fields.startDate;
+    if ('startSlot' in fields) piece.startSlot = fields.startSlot;
+    if ('durationSlots' in fields) piece.durationSlots = fields.durationSlots;
+  }
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (!drag) return;
+  const slotPx = drag.slotPx;
+  const dx = e.clientX - drag.startX;
+  const dSlots = Math.round(dx / slotPx);
+
+  const view = drag.view || 'real';
+  if (drag.mode === 'move') {
+    const ref = new Date(2000, 0, 1);
+    const origAbs = absoluteSlot(parseDate(drag.origStartDate), drag.origStartSlot, ref);
+    const newAbs = origAbs + dSlots;
+    const pos = fromAbsoluteSlot(newAbs, ref);
+    const snapped = snapStartForward(pos.date, pos.slot);
+    applyViewFields(drag.piece, view, {
+      startDate: fmtDate(snapped.date),
+      startSlot: drag.piece.indicative ? 0 : snapped.slot
+    });
+
+    const snapKey = checkSnapAdjacent(drag.piece, view);
+    if (snapKey && snapKey !== drag.lastSnapKey) {
+      drag.el.classList.remove('pop');
+      void drag.el.offsetWidth;
+      drag.el.classList.add('pop');
+    }
+    drag.lastSnapKey = snapKey;
+  } else {
+    const ref = new Date(2000, 0, 1);
+    const origEnd = pieceEnd({
+      startDate: drag.origStartDate,
+      startSlot: drag.origStartSlot,
+      durationSlots: drag.origDuration
+    });
+    const origEndDayIdx = diffDays(ref, origEnd.date);
+    const dayU = dayWidthUnits();
+    const origRightAbs = origEndDayIdx * dayU + slotToXWithinDay(origEnd.slot);
+    const newRightAbs = origRightAbs + dx / slotPx;
+    const newDayIdx = Math.floor(newRightAbs / dayU);
+    const xInDay = newRightAbs - newDayIdx * dayU;
+    const endSlot = xWithinDayToSlot(xInDay, WORK_SLOTS_PER_DAY);
+    const startDate = parseDate(drag.origStartDate);
+    const newEndDate = addDays(ref, newDayIdx);
+    const newDur = countWorkSlots(startDate, drag.origStartSlot, newEndDate, endSlot);
+    applyViewFields(drag.piece, view, { durationSlots: Math.max(1, newDur) });
+  }
+
+  autoScrollEdge(e);
+  renderGantt();
+  const newEl = document.querySelector(`.piece[data-id="${drag.piece.id}"]`);
+  if (newEl) {
+    newEl.classList.add('dragging');
+    drag.el = newEl;
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  if (!drag) return;
+  document.querySelectorAll(`.piece[data-id="${drag.piece.id}"]`).forEach(el => el.classList.remove('dragging'));
+  saveState();
+  drag = null;
+});
+
+function checkSnapAdjacent(piece, view) {
+  view = view || 'real';
+  const fMe = fieldsForView(piece, view);
+  if (!fMe.startDate) return null;
+  const ref = new Date(2000, 0, 1);
+  const myStart = diffDays(ref, parseDate(fMe.startDate)) * WORK_SLOTS_PER_DAY + fMe.startSlot;
+  const myEnd = myStart + fMe.durationSlots;
+  for (const o of state.pieces) {
+    if (o.id === piece.id) continue;
+    const fo = fieldsForView(o, view);
+    if (!fo.startDate) continue;
+    const oStart = diffDays(ref, parseDate(fo.startDate)) * WORK_SLOTS_PER_DAY + fo.startSlot;
+    const oEnd = oStart + fo.durationSlots;
+    if (myEnd === oStart) return `${piece.id}->${o.id}`;
+    if (myStart === oEnd) return `${o.id}->${piece.id}`;
+  }
+  return null;
+}
+
+function autoScrollEdge(e) {
+  const scroll = $('#gantt-scroll');
+  const rect = scroll.getBoundingClientRect();
+  const edge = 60;
+  let dx = 0;
+  if (e.clientX > rect.right - edge) dx = (e.clientX - (rect.right - edge)) * 0.5;
+  else if (e.clientX < rect.left + edge) dx = (e.clientX - (rect.left + edge)) * 0.5;
+  if (dx !== 0) scroll.scrollLeft += dx;
+}
+
+/* ============================================================
+   TOOLTIP
+   ============================================================ */
+function showTooltip(piece, e) {
+  if (drag) return;
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.className = 'piece-tooltip';
+    document.body.appendChild(tooltip);
+  }
+  const view = currentView();
+  const f = fieldsForView(piece, view);
+  const label = piece.code || piece.description || '(sem tarefa)';
+  const statusParts = [];
+  if (piece.indicative) statusParts.push('Indicativo');
+  statusParts.push(view === 'planned' ? 'Planeado' : 'Real');
+  if (piece.completedAt) statusParts.push('Concluída ' + fmtDatePt(new Date(piece.completedAt)));
+  const status = '<span style="opacity:0.75;font-weight:normal;">· ' + statusParts.join(' · ') + '</span>';
+  if (piece.indicative) {
+    tooltip.innerHTML = `
+      <b>${escapeHtml(label)}</b> ${status}<br>
+      Data: ${fmtDatePt(parseDate(f.startDate))}
+      ${piece.notes ? '<br><i>' + escapeHtml(piece.notes) + '</i>' : ''}
+    `;
+  } else {
+    const end = pieceEnd(piece, view);
+    const dur = slotsToHours(f.durationSlots);
+    tooltip.innerHTML = `
+      <b>${escapeHtml(label)}</b> ${status}<br>
+      Início: ${fmtDatePt(parseDate(f.startDate))} às ${slotToHourLabel(f.startSlot)}<br>
+      Fim: ${fmtDatePt(end.date)} às ${slotToHourLabel(end.slot)}<br>
+      Duração: ${dur}h
+      ${piece.notes ? '<br><i>' + escapeHtml(piece.notes) + '</i>' : ''}
+    `;
+  }
+  moveTooltip(e);
+}
+function moveTooltip(e) {
+  if (!tooltip) return;
+  const pad = 12;
+  let x = e.clientX + pad, y = e.clientY + pad;
+  const w = tooltip.offsetWidth, h = tooltip.offsetHeight;
+  if (x + w > window.innerWidth - 8) x = e.clientX - w - pad;
+  if (y + h > window.innerHeight - 8) y = e.clientY - h - pad;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+function hideTooltip() {
+  if (tooltip) tooltip.remove();
+  tooltip = null;
+}
+
+/* ============================================================
+   CONTEXT MENU
+   ============================================================ */
+let ctxMenu = null;
+let ctxMenuOutsideHandler = null;
+function openContextMenu(piece, x, y) {
+  closeContextMenu();
+  ctxMenu = document.createElement('div');
+  ctxMenu.className = 'ctx-menu';
+  ctxMenu.style.left = x + 'px';
+  ctxMenu.style.top = y + 'px';
+  const isCompleted = !!piece.completedAt;
+  ctxMenu.innerHTML = `
+    <button data-act="edit">Editar tarefa…</button>
+    ${isCompleted
+      ? '<button data-act="restore">Restaurar (desfazer conclusão)</button>'
+      : '<button data-act="complete">Marcar como concluída…</button>'}
+    <button data-act="duplicate">Duplicar</button>
+    <div class="sep"></div>
+    <button class="danger" data-act="delete">Apagar tarefa</button>
+  `;
+  document.body.appendChild(ctxMenu);
+  const rect = ctxMenu.getBoundingClientRect();
+  const margin = 8;
+  if (y + rect.height > window.innerHeight - margin) {
+    ctxMenu.style.top = Math.max(margin, y - rect.height) + 'px';
+  }
+  if (x + rect.width > window.innerWidth - margin) {
+    ctxMenu.style.left = Math.max(margin, x - rect.width) + 'px';
+  }
+  ctxMenu.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    const act = btn && btn.dataset.act;
+    if (!act) return;
+    closeContextMenu();
+    if (act === 'edit') openPieceModal(piece.id);
+    else if (act === 'complete') openCompleteModal(piece.id);
+    else if (act === 'restore') restorePiece(piece.id);
+    else if (act === 'duplicate') duplicatePiece(piece.id);
+    else if (act === 'delete') deletePiece(piece.id);
+  });
+  ctxMenuOutsideHandler = (e) => {
+    if (ctxMenu && !ctxMenu.contains(e.target)) closeContextMenu();
+  };
+  setTimeout(() => document.addEventListener('mousedown', ctxMenuOutsideHandler), 0);
+}
+function closeContextMenu() {
+  if (ctxMenu) { ctxMenu.remove(); ctxMenu = null; }
+  if (ctxMenuOutsideHandler) {
+    document.removeEventListener('mousedown', ctxMenuOutsideHandler);
+    ctxMenuOutsideHandler = null;
+  }
+}
+
+/* ============================================================
+   PIECE OPERATIONS
+   ============================================================ */
+/* Conclui imediatamente com os valores reais já no piece (usado pelo modal de conclusão). */
+function completePiece(id, realFields) {
+  const piece = state.pieces.find(p => p.id === id);
+  if (!piece) return;
+  pushHistory();
+  if (realFields) {
+    if (realFields.startDate !== undefined) piece.startDate = realFields.startDate;
+    if (realFields.startSlot !== undefined) piece.startSlot = realFields.startSlot;
+    if (realFields.durationSlots !== undefined) piece.durationSlots = realFields.durationSlots;
+    if (realFields.notes !== undefined) piece.notes = realFields.notes;
+    normalizePieceStart(piece);
+  }
+  piece.completedAt = new Date().toISOString();
+  saveState();
+  renderGantt();
+  updateUnplannedBadge();
+}
+function deletePiece(id) {
+  if (!confirm('Apagar esta tarefa?')) return;
+  const arr = state.pieces;
+  const idx = arr.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  pushHistory();
+  arr.splice(idx, 1);
+  saveState();
+  renderGantt();
+  updateUnplannedBadge();
+}
+function duplicatePiece(id) {
+  const arr = state.pieces;
+  const src = arr.find(p => p.id === id);
+  if (!src) return;
+  pushHistory();
+  const copy = { ...src, id: uid() };
+  delete copy.completedAt;
+  delete copy.concluidoLN;
+  if (copy.startDate) {
+    if (copy.indicative) {
+      copy.startSlot = 0;
+      copy.startDate = fmtDate(addDays(parseDate(src.startDate), 1));
+    } else {
+      copy.startSlot = src.startSlot + src.durationSlots;
+      if (copy.startSlot >= WORK_SLOTS_PER_DAY) {
+        copy.startSlot = 0;
+        copy.startDate = fmtDate(addDays(parseDate(src.startDate), 1));
+      }
+    }
+    // O duplicado começa com planned = real (novo "planeado" da cópia)
+    copy.plannedStartDate = copy.startDate;
+    copy.plannedStartSlot = copy.startSlot;
+    copy.plannedDurationSlots = copy.durationSlots;
+    normalizePieceStart(copy);
+  }
+  arr.push(copy);
+  saveState();
+  renderGantt();
+  updateUnplannedBadge();
+}
+function restorePiece(id) {
+  const piece = state.pieces.find(p => p.id === id);
+  if (!piece || !piece.completedAt) return;
+  pushHistory();
+  delete piece.completedAt;
+  delete piece.concluidoLN;
+  saveState();
+  if (state.ui.view === 'completed') renderCompleted();
+  else renderGantt();
+}
+
+/* ============================================================
+   MODAL — PIECE
+   ============================================================ */
+let editingPieceId = null;
+
+function fillHourSelect(sel) {
+  sel.innerHTML = '';
+  const refMon = new Date(2001, 0, 1);
+  for (let s = 0; s < WORK_SLOTS_PER_DAY; s++) {
+    if (isLunchSlot(s, refMon)) continue;
+    const o = document.createElement('option');
+    o.value = s; o.textContent = slotToHourLabel(s);
+    sel.appendChild(o);
+  }
+}
+
+function setActiveModalTab(name) {
+  $$('#pf-tabs .mtab').forEach(b => b.classList.toggle('active', b.dataset.mtab === name));
+  $$('.mtab-panel').forEach(p => { p.hidden = p.dataset.mtabPanel !== name; });
+}
+
+function openPieceModal(id) {
+  editingPieceId = id || null;
+  const m = $('#modal-piece');
+  const piece = id ? state.pieces.find(p => p.id === id) : null;
+
+  fillHourSelect($('#pf-planned-hour'));
+  fillHourSelect($('#pf-real-hour'));
+
+  $('#piece-modal-title').textContent = piece ? 'Editar Tarefa' : 'Nova Tarefa';
+  $('#pf-delete').hidden = !piece;
+  $('#pf-sync-real').hidden = !(piece && piece.plannedStartDate);
+
+  const todayStr = fmtDate(new Date());
+
+  if (piece) {
+    $('#pf-code').value = piece.code || piece.description || '';
+    const isUnplanned = !piece.startDate && !piece.plannedStartDate;
+    $('#pf-unplanned').checked = isUnplanned;
+    $('#pf-indicative').checked = !!piece.indicative;
+    // Planeado
+    $('#pf-planned-date').value = piece.plannedStartDate || piece.startDate || todayStr;
+    $('#pf-planned-hour').value = (piece.plannedStartSlot != null) ? piece.plannedStartSlot : (piece.startSlot != null ? piece.startSlot : 0);
+    $('#pf-planned-duration').value = piece.plannedDurationSlots ? slotsToHours(piece.plannedDurationSlots) : (piece.durationSlots ? slotsToHours(piece.durationSlots) : 2);
+    // Real
+    $('#pf-real-date').value = piece.startDate || piece.plannedStartDate || todayStr;
+    $('#pf-real-hour').value = (piece.startSlot != null) ? piece.startSlot : (piece.plannedStartSlot != null ? piece.plannedStartSlot : 0);
+    $('#pf-real-duration').value = piece.durationSlots ? slotsToHours(piece.durationSlots) : (piece.plannedDurationSlots ? slotsToHours(piece.plannedDurationSlots) : 2);
+    // Unplanned-only duration
+    $('#pf-unplanned-duration').value = piece.durationSlots ? slotsToHours(piece.durationSlots) : (piece.plannedDurationSlots ? slotsToHours(piece.plannedDurationSlots) : 2);
+    // Notas — campo comum com o modal "Concluir Tarefa"
+    $('#pf-notes').value = piece.notes || '';
+    fillGroupSelect(piece.groupId);
+  } else {
+    fillGroupSelect(lastUsedGroupId);
+    $('#pf-code').value = '';
+    $('#pf-unplanned').checked = false;
+    $('#pf-indicative').checked = false;
+    $('#pf-planned-date').value = todayStr;
+    $('#pf-planned-hour').value = 0;
+    $('#pf-planned-duration').value = 2;
+    $('#pf-real-date').value = todayStr;
+    $('#pf-real-hour').value = 0;
+    $('#pf-real-duration').value = 2;
+    $('#pf-unplanned-duration').value = 2;
+    $('#pf-notes').value = '';
+  }
+  // Em criação, o Real sincroniza automaticamente com o Planeado no primeiro save —
+  // por isso esconde o tab "Real" para evitar confusão. Em edição, ambos visíveis.
+  const realTabBtn = document.querySelector('#pf-tabs .mtab[data-mtab="real"]');
+  if (realTabBtn) realTabBtn.hidden = !piece;
+  setActiveModalTab('planned');
+  applyModeToggle();
+  updateEndPreview('planned');
+  updateEndPreview('real');
+  m.hidden = false;
+}
+function closePieceModal() { $('#modal-piece').hidden = true; editingPieceId = null; }
+let lastUsedGroupId = '';   // nova tarefa sugere o último grupo usado (sessão atual)
+
+function applyModeToggle() {
+  const unplanned = $('#pf-unplanned').checked;
+  const indicative = $('#pf-indicative').checked;
+  $('#pf-tabs-container').style.display = unplanned ? 'none' : '';
+  $('#pf-unplanned-only').hidden = !unplanned;
+  // Em modo indicativo só faz sentido a data — esconde hora e duração nos dois painéis.
+  $$('.pf-hour-field').forEach(el => { el.style.display = indicative ? 'none' : ''; });
+  $$('.pf-duration-field').forEach(el => { el.style.display = indicative ? 'none' : ''; });
+}
+$('#pf-tabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('.mtab'); if (!btn) return;
+  setActiveModalTab(btn.dataset.mtab);
+});
+
+/* Recalcula data/hora fim do painel pedido (planned|real) a partir da data início + hora início + duração. */
+function updateEndPreview(panel) {
+  const endRow = document.querySelector(`.mtab-panel[data-mtab-panel="${panel}"] .pf-end-row`);
+  const indicative = $('#pf-indicative').checked;
+  const unplanned = $('#pf-unplanned').checked;
+  if (endRow) endRow.style.display = (indicative || unplanned) ? 'none' : '';
+  if (indicative || unplanned) return;
+
+  const dateVal = $(`#pf-${panel}-date`).value;
+  const slot = parseInt($(`#pf-${panel}-hour`).value, 10);
+  const hours = parseFloat($(`#pf-${panel}-duration`).value);
+  const endDateEl = $(`#pf-${panel}-end-date`);
+  const endHourEl = $(`#pf-${panel}-end-hour`);
+  if (!dateVal || isNaN(slot) || !hours || hours <= 0) {
+    endDateEl.value = '';
+    endHourEl.value = '';
+    return;
+  }
+  const sn = snapStartForward(parseDate(dateVal), slot);
+  const tmp = { startDate: fmtDate(sn.date), startSlot: sn.slot, durationSlots: hoursToSlots(hours), indicative: false };
+  const end = pieceEnd(tmp);
+  endDateEl.value = fmtDate(end.date);
+  endHourEl.value = slotToHourLabel(end.slot);
+}
+
+['planned', 'real'].forEach(panel => {
+  ['date', 'hour', 'duration'].forEach(kind => {
+    const el = $(`#pf-${panel}-${kind}`);
+    if (el) el.addEventListener('input', () => updateEndPreview(panel));
+    if (el) el.addEventListener('change', () => updateEndPreview(panel));
+  });
+});
+$('#pf-unplanned').addEventListener('change', () => {
+  if ($('#pf-unplanned').checked) $('#pf-indicative').checked = false;
+  applyModeToggle();
+  updateEndPreview('planned');
+  updateEndPreview('real');
+});
+$('#pf-indicative').addEventListener('change', () => {
+  if ($('#pf-indicative').checked) $('#pf-unplanned').checked = false;
+  applyModeToggle();
+  updateEndPreview('planned');
+  updateEndPreview('real');
+});
+
+$('#pf-save').addEventListener('click', () => {
+  const code = $('#pf-code').value.trim();
+  const unplanned = $('#pf-unplanned').checked;
+  const indicative = $('#pf-indicative').checked;
+  const notes = $('#pf-notes').value.trim();
+
+  if (!code) { alert('Indique o nome da tarefa.'); return; }
+
+  // Lê valores dos painéis Planeado e Real.
+  const plannedDate = $('#pf-planned-date').value;
+  const plannedSlot = parseInt($('#pf-planned-hour').value, 10) || 0;
+  const plannedHours = parseFloat($('#pf-planned-duration').value);
+  const realDate = $('#pf-real-date').value;
+  const realSlot = parseInt($('#pf-real-hour').value, 10) || 0;
+  const realHours = parseFloat($('#pf-real-duration').value);
+  const unplannedHours = parseFloat($('#pf-unplanned-duration').value);
+
+  if (unplanned) {
+    if (!unplannedHours || unplannedHours <= 0) { alert('Duração inválida.'); return; }
+  } else if (indicative) {
+    if (!plannedDate || !realDate) { alert('Indique as datas (Planeado e Real).'); return; }
+  } else {
+    if (!plannedDate || !realDate) { alert('Indique as datas (Planeado e Real).'); return; }
+    if (!plannedHours || plannedHours <= 0) { alert('Duração planeada inválida.'); return; }
+    if (!realHours || realHours <= 0) { alert('Duração real inválida.'); return; }
+  }
+
+  let existing = editingPieceId ? state.pieces.find(x => x.id === editingPieceId) : null;
+  const groupSel = $('#pf-group').value;
+  const groupId = groupById(groupSel) ? groupSel : '';
+  pushHistory();
+
+  if (indicative) {
+    const snP = snapStartForward(parseDate(plannedDate), 0);
+    const snR = existing ? snapStartForward(parseDate(realDate), 0) : snP;
+    const pDate = fmtDate(snP.date), rDate = fmtDate(snR.date);
+    const data = {
+      code, description: '', notes, indicative: true,
+      startDate: rDate, startSlot: 0, durationSlots: 1,
+      plannedStartDate: pDate, plannedStartSlot: 0, plannedDurationSlots: 1
+    };
+    if (existing) { Object.assign(existing, data); delete existing.project; }
+    else state.pieces.push({ id: uid(), ...data });
+  } else if (unplanned) {
+    const durationSlots = hoursToSlots(unplannedHours);
+    if (existing) {
+      Object.assign(existing, { code, description: '', durationSlots, notes, indicative: false });
+      delete existing.project;
+      delete existing.startDate; delete existing.startSlot;
+      delete existing.plannedStartDate; delete existing.plannedStartSlot; delete existing.plannedDurationSlots;
+    } else {
+      state.pieces.push({ id: uid(), code, description: '', durationSlots, notes, indicative: false });
+    }
+  } else {
+    const plannedDur = hoursToSlots(plannedHours);
+    const snP = snapStartForward(parseDate(plannedDate), plannedSlot);
+    // Em criação, o Real espelha o Planeado (ignora o painel Real, que está escondido).
+    const realDur = existing ? hoursToSlots(realHours) : plannedDur;
+    const snR = existing ? snapStartForward(parseDate(realDate), realSlot) : snP;
+    const data = {
+      code, description: '', notes, indicative: false,
+      startDate: fmtDate(snR.date), startSlot: snR.slot, durationSlots: realDur,
+      plannedStartDate: fmtDate(snP.date), plannedStartSlot: snP.slot, plannedDurationSlots: plannedDur
+    };
+    if (existing) { Object.assign(existing, data); delete existing.project; }
+    else state.pieces.push({ id: uid(), ...data });
+  }
+  // Grupo (igual para os três tipos de tarefa)
+  const target = existing || state.pieces[state.pieces.length - 1];
+  if (groupId) target.groupId = groupId; else delete target.groupId;
+  lastUsedGroupId = groupId;
+  saveState();
+  closePieceModal();
+  renderGantt();
+  updateUnplannedBadge();
+  if (!$('#modal-unplanned').hidden) renderUnplannedList();
+});
+$('#pf-delete').addEventListener('click', () => {
+  if (editingPieceId) deletePiece(editingPieceId);
+  closePieceModal();
+  if (!$('#modal-unplanned').hidden) renderUnplannedList();
+});
+$('#pf-sync-real').addEventListener('click', () => {
+  if (!editingPieceId) return;
+  const piece = state.pieces.find(p => p.id === editingPieceId);
+  if (!piece || !piece.plannedStartDate) return;
+  if (!confirm('Sincronizar o Real com o Planeado nesta tarefa? (podes desfazer com Ctrl+Z)')) return;
+  pushHistory();
+  piece.startDate     = piece.plannedStartDate;
+  piece.startSlot     = piece.plannedStartSlot;
+  piece.durationSlots = piece.plannedDurationSlots;
+  saveState();
+  closePieceModal();
+  renderGantt();
+  updateUnplannedBadge();
+  showToast('Real sincronizado com Planeado (Ctrl+Z para desfazer)');
+});
+
+/* ============================================================
+   MODAL — CONCLUIR (ajustar valores reais)
+   ============================================================ */
+let completingPieceId = null;
+
+/* Preenche um <select> com os slots válidos como "fim de tarefa" (inclui slot 18 = 17:00 e
+   o slot que marca o início do almoço, mas exclui slots dentro do almoço propriamente dito). */
+function fillEndHourSelect(sel) {
+  sel.innerHTML = '';
+  const refMon = new Date(2001, 0, 1);
+  for (let s = 1; s <= WORK_SLOTS_PER_DAY; s++) {
+    // Permitir o slot que representa o início do almoço (= "fim de manhã"),
+    // mas não os slots intermédios/finais do almoço.
+    if (isLunchSlot(s, refMon) && isLunchSlot(s - 1, refMon)) continue;
+    const o = document.createElement('option');
+    o.value = s; o.textContent = slotToHourLabel(s);
+    sel.appendChild(o);
+  }
+}
+
+function updateCompleteDurationInfo() {
+  const info = $('#cf-duration-info');
+  const sd = $('#cf-date').value;
+  const ed = $('#cf-end-date').value;
+  if (!sd || !ed) { info.textContent = ''; return; }
+  const ss = parseInt($('#cf-start-hour').value, 10) || 0;
+  const es = parseInt($('#cf-end-hour').value, 10) || 0;
+  const slots = countWorkSlots(parseDate(sd), ss, parseDate(ed), es);
+  if (slots <= 0) {
+    info.innerHTML = '<span style="color:#c53030;">⚠ A data/hora fim deve ser depois do início (considerando dias úteis, almoço e sábados).</span>';
+  } else {
+    info.innerHTML = `Duração real calculada: <b>${slotsToHours(slots)}h</b>`;
+    info.style.color = '#2d3748';
+  }
+}
+
+function openCompleteModal(id) {
+  const piece = state.pieces.find(p => p.id === id);
+  if (!piece) return;
+  if (!piece.startDate && !piece.plannedStartDate) {
+    completePiece(id, null);
+    return;
+  }
+  completingPieceId = id;
+  const m = $('#modal-complete');
+  fillHourSelect($('#cf-start-hour'));
+  fillEndHourSelect($('#cf-end-hour'));
+
+  const pInfo = $('#cf-planned-info');
+  const pd = parseDate(piece.plannedStartDate || piece.startDate);
+  if (piece.indicative) {
+    pInfo.innerHTML = `<span><b>Data:</b>${fmtDatePt(pd)}</span>`;
+    $('#cf-start-hour-field').style.display = 'none';
+    $('#cf-end-row').style.display = 'none';
+    $('#cf-duration-info').style.display = 'none';
+  } else {
+    const pEnd = pieceEnd(piece, 'planned');
+    pInfo.innerHTML =
+      `<span><b>Início:</b>${fmtDatePt(pd)} ${slotToHourLabel(piece.plannedStartSlot || 0)}</span>` +
+      `<span><b>Fim:</b>${fmtDatePt(pEnd.date)} ${slotToHourLabel(pEnd.slot)}</span>` +
+      `<span><b>Duração:</b>${slotsToHours(piece.plannedDurationSlots || piece.durationSlots)}h</span>`;
+    $('#cf-start-hour-field').style.display = '';
+    $('#cf-end-row').style.display = '';
+    $('#cf-duration-info').style.display = '';
+  }
+
+  // Pré-preenche reais com valores actuais (que por defeito = planeado).
+  $('#cf-date').value = piece.startDate || piece.plannedStartDate;
+  $('#cf-start-hour').value = (piece.startSlot != null) ? piece.startSlot : (piece.plannedStartSlot || 0);
+  $('#cf-notes').value = piece.notes || '';
+
+  if (!piece.indicative) {
+    // Calcula o fim actual da peça (real) para pré-preencher os campos de fim.
+    const curEnd = pieceEnd(piece, 'real');
+    $('#cf-end-date').value = fmtDate(curEnd.date);
+    $('#cf-end-hour').value = String(curEnd.slot);
+    updateCompleteDurationInfo();
+  }
+  m.hidden = false;
+}
+function closeCompleteModal() { $('#modal-complete').hidden = true; completingPieceId = null; }
+
+['cf-date','cf-start-hour','cf-end-date','cf-end-hour'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('input', updateCompleteDurationInfo);
+    el.addEventListener('change', updateCompleteDurationInfo);
+  }
+});
+
+$('#cf-save').addEventListener('click', () => {
+  if (!completingPieceId) return;
+  const piece = state.pieces.find(p => p.id === completingPieceId);
+  if (!piece) { closeCompleteModal(); return; }
+  const date = $('#cf-date').value;
+  if (!date) { alert('Indica a data início real.'); return; }
+  const notes = $('#cf-notes').value.trim();
+  let real;
+  if (piece.indicative) {
+    real = { startDate: date, startSlot: 0, durationSlots: 1, notes };
+  } else {
+    const startSlot = parseInt($('#cf-start-hour').value, 10) || 0;
+    const endDate = $('#cf-end-date').value;
+    const endSlot = parseInt($('#cf-end-hour').value, 10) || 0;
+    if (!endDate) { alert('Indica a data fim real.'); return; }
+    // Faz snap do início para garantir que cai em horário de trabalho.
+    const sn = snapStartForward(parseDate(date), startSlot);
+    const slots = countWorkSlots(sn.date, sn.slot, parseDate(endDate), endSlot);
+    if (slots <= 0) {
+      alert('A data/hora fim deve ser depois do início (considerando dias úteis, almoço e sábados).');
+      return;
+    }
+    real = { startDate: fmtDate(sn.date), startSlot: sn.slot, durationSlots: slots, notes };
+  }
+  completePiece(completingPieceId, real);
+  closeCompleteModal();
+});
+
+/* ============================================================
+   PROGRESS VIEW
+   ============================================================ */
+/* Converte "agora" para (date, slot) — usando 0 se ainda antes das 8h, 18 se já passou as 17h.
+   Durante a hora de almoço (12:30-13:30) "congela" no início do almoço (slot 9) para que o
+   progresso não avance enquanto não há trabalho real. countWorkSlots já exclui slots de almoço,
+   mas este snap explícito blinda contra qualquer caso limite. */
+function nowAsDateSlot() {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const mins = now.getHours() * 60 + now.getMinutes();
+  let slot;
+  if (mins < 8 * 60) slot = 0;
+  else if (mins >= 17 * 60) slot = WORK_SLOTS_PER_DAY;
+  else slot = Math.floor((mins - 8 * 60) / 30);
+  if (isLunchSlot(slot, d)) slot = 9;
+  return { date: d, slot };
+}
+
+/* Percentagem de progresso real da peça (0-100) com base em "agora".
+   - Concluída → 100
+   - Antes do início → 0
+   - Depois do fim → 100 (passou o prazo)
+   - Caso contrário → slots úteis decorridos / duração total */
+function pieceProgress(piece) {
+  if (!piece.startDate || !piece.durationSlots) return 0;
+  if (piece.completedAt) return 100;
+  const startDate = parseDate(piece.startDate);
+  const startSlot = piece.startSlot || 0;
+  const dur = piece.durationSlots;
+  const now = nowAsDateSlot();
+  const elapsed = countWorkSlots(startDate, startSlot, now.date, now.slot);
+  if (elapsed <= 0) return 0;
+  if (elapsed >= dur) return 100;
+  return Math.round((elapsed / dur) * 100);
+}
+
+/* Verdadeiro se "agora" está dentro do período da peça (não concluída).
+   Para indicativas: hoje == data da tarefa.
+   Para normais: início <= agora < fim, na vista pedida. */
+function isPieceInProgress(piece, view) {
+  if (piece.completedAt) return false;
+  view = view || currentView();
+  const f = fieldsForView(piece, view);
+  if (!f.startDate) return false;
+  const startDate = parseDate(f.startDate);
+  if (piece.indicative) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    return sameDay(today, startDate);
+  }
+  if (!f.durationSlots) return false;
+  const now = nowAsDateSlot();
+  const nowAbs = endToAbsSlots(now);
+  const startAbs = endToAbsSlots({ date: startDate, slot: f.startSlot || 0 });
+  if (nowAbs < startAbs) return false;
+  const end = pieceEnd(piece, view);
+  return nowAbs < endToAbsSlots(end);
+}
+
+/* Converte um end={date, slot} para um inteiro comparável (slots absolutos desde uma data ref). */
+function endToAbsSlots(end) {
+  const ref = new Date(2000, 0, 1);
+  return diffDays(ref, end.date) * WORK_SLOTS_PER_DAY + end.slot;
+}
+
+/* Diferença assinada em work slots (positivo se b > a, negativo se a > b). Exclui almoço. */
+function workSlotsDelta(a, b) {
+  const aAbs = endToAbsSlots(a);
+  const bAbs = endToAbsSlots(b);
+  if (bAbs === aAbs) return 0;
+  if (bAbs > aAbs) return countWorkSlots(a.date, a.slot, b.date, b.slot);
+  return -countWorkSlots(b.date, b.slot, a.date, a.slot);
+}
+
+/* Formata um número assinado de work slots: "+1h", "-0:30h", "+1d", "-1d + 2h". */
+function formatSlotsSigned(slots) {
+  if (slots === 0) return '';
+  const sign = slots > 0 ? '+' : '-';
+  const abs = Math.abs(slots);
+  const SLOTS_PER_DAY = 16;
+  if (abs % SLOTS_PER_DAY === 0) return sign + (abs / SLOTS_PER_DAY) + 'd';
+  return sign + formatDuration(abs);
+}
+
+/* Diferença assinada em dias úteis. */
+function workingDaysDelta(a, b) {
+  if (sameDay(a, b)) return 0;
+  if (b > a) return workingDaysBetween(a, b);
+  return -workingDaysBetween(b, a);
+}
+
+function formatDaysSigned(days) {
+  if (days === 0) return '';
+  return (days > 0 ? '+' : '-') + Math.abs(days) + 'd';
+}
+
+/* Conta dias úteis estritamente APÓS fromDate, até (inclusivo) toDate. Exclui Domingos e Sábados inativos. */
+function workingDaysBetween(fromDate, toDate) {
+  if (diffDays(fromDate, toDate) <= 0) return 0;
+  let count = 0;
+  let d = addDays(fromDate, 1);
+  while (diffDays(d, toDate) >= 0) {
+    if (!isNonWorkingDay(d)) count++;
+    d = addDays(d, 1);
+  }
+  return count;
+}
+
+/* Calcula informação de atraso da peça em relação ao planeado.
+   Para indicativas: usa dias úteis. Para normais: usa work slots (já exclui almoço).
+   Devolve { text, completed } ou null se não houver atraso. */
+function pieceDelayInfo(piece) {
+  if (piece.indicative) {
+    if (!piece.plannedStartDate) return null;
+    const planned = parseDate(piece.plannedStartDate);
+    if (piece.completedAt) {
+      const real = parseDate(piece.startDate || piece.plannedStartDate);
+      const days = workingDaysBetween(planned, real);
+      if (days <= 0) return null;
+      return { text: `Concluído com ${days} dia${days > 1 ? 's' : ''} de atraso`, completed: true };
+    }
+    const today = new Date(); today.setHours(0,0,0,0);
+    const days = workingDaysBetween(planned, today);
+    if (days <= 0) return null;
+    return { text: `${days} dia${days > 1 ? 's' : ''} atrasado em relação ao planeado`, completed: false };
+  }
+
+  if (!piece.plannedStartDate || !piece.plannedDurationSlots) return null;
+  const plannedEnd = pieceEnd(piece, 'planned');
+  const plannedAbs = endToAbsSlots(plannedEnd);
+
+  if (piece.completedAt) {
+    const realEnd = pieceEnd(piece, 'real');
+    if (endToAbsSlots(realEnd) <= plannedAbs) return null;
+    const delaySlots = countWorkSlots(plannedEnd.date, plannedEnd.slot, realEnd.date, realEnd.slot);
+    if (delaySlots <= 0) return null;
+    return { text: `Concluído com ${formatDuration(delaySlots)} de atraso`, completed: true };
+  }
+  const now = nowAsDateSlot();
+  if (endToAbsSlots(now) <= plannedAbs) return null;
+  const delaySlots = countWorkSlots(plannedEnd.date, plannedEnd.slot, now.date, now.slot);
+  if (delaySlots <= 0) return null;
+  return { text: `${formatDuration(delaySlots)} atrasado em relação ao planeado`, completed: false };
+}
+
+/* Calcula os KPIs agregados do projecto. */
+function computeProgressKpis() {
+  const pieces = state.pieces;
+  // Para % conclusão: contam todas as tarefas com data (planeadas + indicativas), excluindo "por planear".
+  const withDate = pieces.filter(p => p.startDate);
+  const completedAll = withDate.filter(p => p.completedAt);
+  const total = withDate.length;
+  const completedCount = completedAll.length;
+  const completionPct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+
+  // Para desvio/atrasadas/adiantadas: tarefas concluídas, não indicativas, com planeado e real.
+  const comparable = pieces.filter(p =>
+    p.completedAt && !p.indicative && p.plannedDurationSlots && p.startDate && p.plannedStartDate
+  );
+
+  let sumReal = 0, sumPlanned = 0, tasksWithDeviation = 0;
+  let lateCount = 0, earlyCount = 0;
+  for (const p of comparable) {
+    sumReal += (p.durationSlots || 0);
+    sumPlanned += p.plannedDurationSlots;
+    if (p.durationSlots !== p.plannedDurationSlots) tasksWithDeviation++;
+    const realEndAbs = endToAbsSlots(pieceEnd(p, 'real'));
+    const plannedEndAbs = endToAbsSlots(pieceEnd(p, 'planned'));
+    if (realEndAbs > plannedEndAbs) lateCount++;
+    else if (realEndAbs < plannedEndAbs) earlyCount++;
+  }
+  const deviationSlots = sumReal - sumPlanned;
+  const deviationPct = sumPlanned > 0 ? Math.round((deviationSlots / sumPlanned) * 100) : 0;
+  const comparableTotal = comparable.length;
+  const latePct = comparableTotal > 0 ? Math.round((lateCount / comparableTotal) * 100) : 0;
+  const earlyPct = comparableTotal > 0 ? Math.round((earlyCount / comparableTotal) * 100) : 0;
+
+  return {
+    total, completedCount, completionPct,
+    sumReal, sumPlanned, deviationSlots, deviationPct, tasksWithDeviation, comparableTotal,
+    lateCount, latePct, earlyCount, earlyPct
+  };
+}
+
+function buildKpiHtml(k) {
+  const devSlotsAbs = Math.abs(k.deviationSlots);
+  const devHours = slotsToHours(devSlotsAbs);
+  const devHourStr = devHours === Math.floor(devHours) ? devHours + 'h' : devHours + 'h';
+  const devSign = k.deviationSlots > 0 ? '+' : (k.deviationSlots < 0 ? '−' : '');
+  const devPctSign = k.deviationPct > 0 ? '+' : (k.deviationPct < 0 ? '−' : '');
+  const devClass = k.deviationSlots > 0 ? ' dev-positive' : (k.deviationSlots < 0 ? ' dev-negative' : '');
+  return `
+    <div class="kpi-grid">
+      <div class="kpi-card completion">
+        <div class="kpi-label">Conclusão Total</div>
+        <div class="kpi-value">${k.completionPct}%</div>
+        <div class="kpi-sub">${k.completedCount} / ${k.total} tarefas concluídas</div>
+      </div>
+      <div class="kpi-card deviation${devClass}">
+        <div class="kpi-label">Desvio de Horas</div>
+        <div class="kpi-value">${devSign}${devHourStr}<span class="kpi-value-side">(${devPctSign}${Math.abs(k.deviationPct)}%)</span></div>
+        <div class="kpi-sub">${k.tasksWithDeviation} / ${k.comparableTotal} tarefas com desvio</div>
+      </div>
+      <div class="kpi-card late">
+        <div class="kpi-label">Atrasadas</div>
+        <div class="kpi-value">${k.latePct}%</div>
+        <div class="kpi-sub">${k.lateCount} / ${k.comparableTotal} tarefas</div>
+      </div>
+      <div class="kpi-card early">
+        <div class="kpi-label">Adiantadas</div>
+        <div class="kpi-value">${k.earlyPct}%</div>
+        <div class="kpi-sub">${k.earlyCount} / ${k.comparableTotal} tarefas</div>
+      </div>
+    </div>`;
+}
+
+function renderProgress() {
+  const container = $('#progress-content');
+  const items = state.pieces
+    .filter(p => p.startDate)
+    .sort((a, b) => {
+      if (a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
+      return (a.startSlot || 0) - (b.startSlot || 0);
+    });
+
+  // KPIs sempre — mesmo sem tarefas, mostra zeros.
+  const kpiHtml = buildKpiHtml(computeProgressKpis());
+
+  if (items.length === 0) {
+    container.innerHTML = kpiHtml + '<div class="progress-empty"><b>Sem tarefas reais</b><br>Cria tarefas com data para acompanhar o progresso.</div>';
+    return;
+  }
+
+  let html = kpiHtml + '<div class="progress-section-title">Tarefas</div><div class="progress-grid">';
+  for (const piece of items) {
+    const isCompleted = !!piece.completedAt;
+    const label = piece.code || piece.description || 'Tarefa';
+    const gName = groupNameOf(piece);
+    const groupHtml = gName ? `<div class="pc-group" title="Grupo">${escapeHtml(gName)}</div>` : '';
+
+    const delay = pieceDelayInfo(piece);
+    const delayHtml = delay
+      ? `<div class="pc-delay${delay.completed ? ' done' : ''}">${escapeHtml(delay.text)}</div>`
+      : '';
+
+    if (piece.indicative) {
+      html += `
+        <div class="progress-card indicative${isCompleted ? ' completed' : ''}" title="${escapeHtml(label)}">
+          <div class="pc-fill" style="width:100%"></div>
+          ${groupHtml}
+          <div class="pc-title">${escapeHtml(label)}</div>
+          <div class="pc-time">${escapeHtml(fmtDateShort(parseDate(piece.startDate)))}</div>
+          <div class="pc-foot">
+            <span class="pc-status">Indicativo</span>
+          </div>
+          ${delayHtml}
+        </div>`;
+      continue;
+    }
+
+    const progress = pieceProgress(piece);
+    const startStr = `${fmtDateShort(parseDate(piece.startDate))} ${formatHourLabel(piece.startSlot)}`;
+    const end = pieceEnd(piece, 'real');
+    const endStr = `${fmtDateShort(end.date)} ${formatHourLabel(end.slot)}`;
+    const status = isCompleted ? 'Concluída' : (progress === 0 ? 'Por iniciar' : (progress >= 100 ? 'Prazo passado' : 'Em curso'));
+    html += `
+      <div class="progress-card${isCompleted ? ' completed' : ''}" title="${escapeHtml(label)}">
+        <div class="pc-fill" style="width:${progress}%"></div>
+        ${groupHtml}
+        <div class="pc-title">${escapeHtml(label)}</div>
+        <div class="pc-time">${escapeHtml(startStr)} → ${escapeHtml(endStr)}</div>
+        <div class="pc-duration">${escapeHtml(formatDuration(piece.durationSlots))}</div>
+        <div class="pc-foot">
+          <span class="pc-pct">${progress}%</span>
+          <span class="pc-status">${escapeHtml(status)}</span>
+        </div>
+        ${delayHtml}
+      </div>`;
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+/* ============================================================
+   COMPLETED VIEW
+   ============================================================ */
+const selectedCompleted = new Set();
+
+function renderCompleted() {
+  $('#completed-title').textContent = `Tarefas concluídas — ${getProjectLabel()}`;
+  const sortDir = state.ui.completedSort || 'desc';
+  const raw = state.pieces.filter(p => p.completedAt);
+  const completed = raw.slice().sort((a, b) => {
+    const ta = new Date(a.completedAt).getTime();
+    const tb = new Date(b.completedAt).getTime();
+    return sortDir === 'desc' ? tb - ta : ta - tb;
+  });
+  const PAGE = 20;
+  const totalPages = Math.max(1, Math.ceil(completed.length / PAGE));
+  if (state.ui.completedPage > totalPages) state.ui.completedPage = totalPages;
+  if (state.ui.completedPage < 1) state.ui.completedPage = 1;
+  const page = state.ui.completedPage;
+  const slice = completed.slice((page - 1) * PAGE, page * PAGE);
+
+  $('#completed-sort').textContent = sortDir === 'desc' ? '↓ Mais recente primeiro' : '↑ Mais antigo primeiro';
+
+  const tbody = $('#completed-tbody');
+  tbody.innerHTML = '';
+  if (completed.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#6b7280;">Sem tarefas concluídas ainda.</td></tr>';
+  } else {
+    for (const p of slice) {
+      const end = (p.startDate && !p.indicative) ? pieceEnd(p) : null;
+      const tr = document.createElement('tr');
+      const completedDate = new Date(p.completedAt);
+      const isSelected = selectedCompleted.has(p.id);
+      const lnDone = !!p.concluidoLN;
+      if (lnDone) tr.classList.add('ln-done');
+      let periodCell, durationCell;
+      if (p.indicative && p.startDate) {
+        periodCell = `${fmtDatePt(parseDate(p.startDate))} <span style="color:#8a93a4;">· Indicativo</span>`;
+        durationCell = '—';
+      } else if (end) {
+        periodCell = `${fmtDatePt(parseDate(p.startDate))} ${slotToHourLabel(p.startSlot)} → ${fmtDatePt(end.date)} ${slotToHourLabel(end.slot)}`;
+        durationCell = `${slotsToHours(p.durationSlots)}h`;
+      } else {
+        periodCell = '—';
+        durationCell = `${slotsToHours(p.durationSlots)}h`;
+      }
+      tr.innerHTML = `
+        <td style="text-align:center;"><input type="checkbox" class="completed-cb" data-id="${p.id}" ${isSelected ? 'checked' : ''}></td>
+        <td>${fmtDatePt(completedDate)} ${String(completedDate.getHours()).padStart(2,'0')}:${String(completedDate.getMinutes()).padStart(2,'0')}</td>
+        <td>${escapeHtml(p.code || p.description || '—')}</td>
+        <td>${periodCell}</td>
+        <td>${durationCell}</td>
+        <td style="text-align:center;"><input type="checkbox" class="completed-ln-cb" data-id="${p.id}" ${lnDone ? 'checked' : ''}></td>
+        <td><button class="restore" data-id="${p.id}">Restaurar</button></td>
+      `;
+      tbody.appendChild(tr);
+    }
+    tbody.querySelectorAll('.restore').forEach(b => b.addEventListener('click', () => restorePiece(b.dataset.id)));
+    tbody.querySelectorAll('.completed-cb').forEach(cb => cb.addEventListener('change', () => {
+      const id = cb.dataset.id;
+      if (cb.checked) selectedCompleted.add(id); else selectedCompleted.delete(id);
+      updateCompletedToolbarState(slice);
+    }));
+    tbody.querySelectorAll('.completed-ln-cb').forEach(cb => cb.addEventListener('change', () => {
+      const id = cb.dataset.id;
+      const piece = state.pieces.find(x => x.id === id);
+      if (!piece) return;
+      piece.concluidoLN = cb.checked;
+      saveState();
+      const row = cb.closest('tr');
+      if (row) row.classList.toggle('ln-done', cb.checked);
+    }));
+  }
+
+  updateCompletedToolbarState(slice);
+
+  const pager = $('#completed-pager');
+  pager.innerHTML = '';
+  if (totalPages > 1) {
+    const prev = document.createElement('button');
+    prev.textContent = '‹ Anterior';
+    prev.disabled = page <= 1;
+    prev.addEventListener('click', () => { state.ui.completedPage--; saveState(); renderCompleted(); });
+    pager.appendChild(prev);
+    const info = document.createElement('span');
+    info.textContent = `Página ${page} de ${totalPages} · ${completed.length} tarefas no total`;
+    pager.appendChild(info);
+    const next = document.createElement('button');
+    next.textContent = 'Seguinte ›';
+    next.disabled = page >= totalPages;
+    next.addEventListener('click', () => { state.ui.completedPage++; saveState(); renderCompleted(); });
+    pager.appendChild(next);
+  } else if (completed.length > 0) {
+    const info = document.createElement('span');
+    info.textContent = `${completed.length} tarefa(s)`;
+    pager.appendChild(info);
+  }
+}
+
+function updateCompletedToolbarState(currentSlice) {
+  const selectedOnPage = currentSlice.filter(p => selectedCompleted.has(p.id)).length;
+  const totalOnPage = currentSlice.length;
+  const master = $('#completed-master-cb');
+  master.checked = totalOnPage > 0 && selectedOnPage === totalOnPage;
+  master.indeterminate = selectedOnPage > 0 && selectedOnPage < totalOnPage;
+  const delBtn = $('#completed-delete');
+  delBtn.disabled = selectedCompleted.size === 0;
+  delBtn.textContent = selectedCompleted.size > 0
+    ? `Apagar selecionadas (${selectedCompleted.size})`
+    : 'Apagar selecionadas';
+}
+
+$('#completed-sort').addEventListener('click', () => {
+  state.ui.completedSort = (state.ui.completedSort === 'asc') ? 'desc' : 'asc';
+  state.ui.completedPage = 1;
+  selectedCompleted.clear();
+  saveState();
+  renderCompleted();
+});
+$('#completed-select-all').addEventListener('click', () => {
+  const sortDir = state.ui.completedSort || 'desc';
+  const raw = state.pieces.filter(p => p.completedAt);
+  const sorted = raw.slice().sort((a, b) => {
+    const ta = new Date(a.completedAt).getTime();
+    const tb = new Date(b.completedAt).getTime();
+    return sortDir === 'desc' ? tb - ta : ta - tb;
+  });
+  const page = state.ui.completedPage;
+  const slice = sorted.slice((page - 1) * 20, page * 20);
+  const allOnPage = slice.every(p => selectedCompleted.has(p.id));
+  if (allOnPage) {
+    slice.forEach(p => selectedCompleted.delete(p.id));
+  } else {
+    slice.forEach(p => selectedCompleted.add(p.id));
+  }
+  renderCompleted();
+});
+$('#completed-master-cb').addEventListener('change', () => {
+  $('#completed-select-all').click();
+});
+$('#completed-delete').addEventListener('click', () => {
+  if (selectedCompleted.size === 0) return;
+  const n = selectedCompleted.size;
+  if (!confirm(`Apagar ${n} tarefa(s) concluída(s)? (podes desfazer com Ctrl+Z)`)) return;
+  pushHistory();
+  state.pieces = state.pieces.filter(p => !(p.completedAt && selectedCompleted.has(p.id)));
+  selectedCompleted.clear();
+  saveState();
+  renderCompleted();
+});
+
+/* ============================================================
+   PRINT
+   ============================================================ */
+function openPrintModal() {
+  const today = new Date();
+  const dow = today.getDay();
+  const offsetToMon = (dow === 0 ? -6 : 1 - dow);
+  const from = addDays(today, offsetToMon);
+  const to = addDays(from, PRINT_MAX_DAYS - 1);
+  $('#print-from').value = fmtDate(from);
+  $('#print-to').value = fmtDate(to);
+  updatePrintHint();
+  $('#modal-print').hidden = false;
+}
+const PRINT_MAX_DAYS = 12;
+function updatePrintHint() {
+  const from = $('#print-from').value;
+  const to = $('#print-to').value;
+  if (!from || !to) return;
+  const fromD = parseDate(from), toD = parseDate(to);
+  const days = diffDays(fromD, toD) + 1;
+  const hint = $('#print-range-hint');
+  if (days <= 0) {
+    hint.textContent = '⚠ Intervalo inválido.';
+    hint.style.color = '#c53030';
+    return;
+  }
+  const effectiveEnd = days > PRINT_MAX_DAYS ? addDays(fromD, PRINT_MAX_DAYS - 1) : toD;
+  const note = days > PRINT_MAX_DAYS
+    ? `Limite de ${PRINT_MAX_DAYS} dias — será impresso ${fmtDatePt(fromD)} → ${fmtDatePt(effectiveEnd)}.`
+    : `${days} dias selecionados.`;
+  hint.textContent = `${note} Domingos serão excluídos. A3 horizontal preenchido sempre que possível.`;
+  hint.style.color = days > PRINT_MAX_DAYS ? '#b45309' : '#4a5568';
+}
+$('#print-from').addEventListener('change', updatePrintHint);
+$('#print-to').addEventListener('change', updatePrintHint);
+
+$('#print-go').addEventListener('click', () => {
+  const from = $('#print-from').value;
+  const to = $('#print-to').value;
+  if (!from || !to) { alert('Defina ambas as datas.'); return; }
+  const fromD = parseDate(from), toD = parseDate(to);
+  const days = diffDays(fromD, toD) + 1;
+  if (days <= 0) { alert('Intervalo inválido.'); return; }
+  const hideEmpty = $('#print-hide-empty').checked;
+  const includeIndicative = $('#print-include-indicative').checked;
+  doPrint(fromD, toD, hideEmpty, includeIndicative);
+});
+
+function doPrint(fromD, toD, hideEmpty, includeIndicative) {
+  const maxEnd = addDays(fromD, PRINT_MAX_DAYS - 1);
+  if (toD > maxEnd) toD = maxEnd;
+
+  const visibleDays = [];
+  for (let d = new Date(fromD); d <= toD; d = addDays(d, 1)) {
+    const dow = d.getDay();
+    if (dow === 0) continue;
+    if (dow === 6 && !isSaturdayActive(d)) continue;
+    visibleDays.push(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+  }
+  if (visibleDays.length === 0) {
+    alert('Sem dias úteis para imprimir no intervalo selecionado.');
+    return;
+  }
+
+  // No print do "Real" só entram tarefas concluídas ou em curso — valida antes de configurar a impressão.
+  if (currentView() === 'real') {
+    const hasReal = state.pieces.some(p => p.startDate && (p.completedAt || isPieceInProgress(p, 'real')));
+    if (!hasReal) {
+      alert('Sem tarefas concluídas ou em curso para incluir no print real.');
+      return;
+    }
+  }
+
+  const MARGIN_LATERAL_MM = 15;
+  const PERSON_COL_MM = 50;
+  const A3_WIDTH_MM = 420;
+
+  const usableW = A3_WIDTH_MM - 2 * MARGIN_LATERAL_MM - PERSON_COL_MM;
+  const totalSlots = visibleDays.length * dayWidthUnits();
+  const slotMm = usableW / totalSlots;
+
+  document.documentElement.style.setProperty('--print-slot', slotMm + 'mm');
+  document.documentElement.style.setProperty('--print-person-col', PERSON_COL_MM + 'mm');
+
+  $('#print-title').textContent = `Planeamento — ${getProjectLabel()}`;
+  const now = new Date();
+  $('#print-meta').textContent =
+    `Período: ${fmtDatePt(fromD)} a ${fmtDatePt(toD)}` +
+    `  ·  Impresso em ${fmtDatePt(now)} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+  renderGanttForPrint(visibleDays, hideEmpty, slotMm, includeIndicative);
+  $('#modal-print').hidden = true;
+
+  const originalTitle = document.title;
+  document.title = ' ';
+
+  setTimeout(() => {
+    window.print();
+    document.title = originalTitle;
+    setTimeout(() => renderGantt(), 200);
+  }, 100);
+}
+
+function renderGanttForPrint(visibleDays, hideEmpty, slotMm, includeIndicative) {
+  const U = 'mm';
+  const slotPx = slotMm;
+  const dayPx = dayWidthUnits() * slotPx;
+  const totalPx = visibleDays.length * dayPx;
+  const firstDay = visibleDays[0];
+  const lastDay = visibleDays[visibleDays.length - 1];
+
+  function visIdx(date) {
+    for (let i = 0; i < visibleDays.length; i++) if (sameDay(visibleDays[i], date)) return i;
+    return -1;
+  }
+  function startX(date, slot) {
+    if (date < firstDay) return 0;
+    if (date > lastDay) return totalPx;
+    let idx = visIdx(date);
+    if (idx === -1) {
+      for (let i = 0; i < visibleDays.length; i++) if (visibleDays[i] > date) return i * dayPx;
+      return totalPx;
+    }
+    return idx * dayPx + slotToXWithinDay(slot) * slotPx;
+  }
+  function endX(date, slot) {
+    if (date < firstDay) return 0;
+    if (date > lastDay) return totalPx;
+    let idx = visIdx(date);
+    if (idx === -1) {
+      for (let i = visibleDays.length - 1; i >= 0; i--) if (visibleDays[i] < date) return (i + 1) * dayPx;
+      return 0;
+    }
+    return idx * dayPx + slotToXWithinDay(slot) * slotPx;
+  }
+
+  const tableWrap = $('#gantt-table');
+  tableWrap.innerHTML = '';
+  tableWrap.style.minWidth = '';
+
+  // Estrutura: <table> com <thead> (que se repete em cada página) e <tbody> (linhas).
+  const tbl = document.createElement('table');
+  tbl.className = 'gantt-print-table';
+
+  const colgroup = document.createElement('colgroup');
+  const col1 = document.createElement('col');
+  col1.style.width = 'var(--print-person-col, 50mm)';
+  const col2 = document.createElement('col');
+  colgroup.appendChild(col1);
+  colgroup.appendChild(col2);
+  tbl.appendChild(colgroup);
+
+  const thead = document.createElement('thead');
+  const headTr = document.createElement('tr');
+  const personTh = document.createElement('th');
+  personTh.className = 'person-head';
+  personTh.textContent = 'TAREFA';
+  headTr.appendChild(personTh);
+
+  const timeTh = document.createElement('th');
+  timeTh.className = 'time-head';
+  const dayRow = document.createElement('div');
+  dayRow.className = 'day-header-row';
+  const hourRow = document.createElement('div');
+  hourRow.className = 'hour-header-row';
+  for (const d of visibleDays) {
+    const isSat = d.getDay() === 6;
+    const dh = document.createElement('div');
+    dh.className = 'day-head-cell';
+    dh.style.width = dayPx + U;
+    dh.textContent = dayLabel(d);
+    dayRow.appendChild(dh);
+    let cumSlot = 0;
+    for (const col of WORK_DAY_COLS) {
+      const hc = document.createElement('div');
+      const colLocked = isSat && cumSlot >= SAT_LOCK_SLOT;
+      hc.className = 'hour-head-cell' + (colLocked ? ' weekend' : '');
+      hc.style.width = (COL_UNITS * slotPx) + U;
+      hc.textContent = col.label.replace(/h$/i, '');
+      hourRow.appendChild(hc);
+      cumSlot += col.spanSlots || 0;
+    }
+    hourRow.lastElementChild.classList.add('day-end');
+  }
+  timeTh.appendChild(dayRow);
+  timeTh.appendChild(hourRow);
+  headTr.appendChild(timeTh);
+  thead.appendChild(headTr);
+  tbl.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+
+  const printView = currentView();
+  const planned = state.pieces.filter(p => {
+    if (!p.startDate) return false;
+    if (!includeIndicative && p.indicative) return false;
+    // No print da vista "Real" só entram tarefas concluídas (espelha o resumo Real).
+    if (printView === 'real' && !p.completedAt && !isPieceInProgress(p, 'real')) return false;
+    if (!hideEmpty) return true;
+    const ps = parseDate(p.startDate);
+    const pe = pieceEnd(p).date;
+    return !(ps > lastDay || pe < firstDay);
+  }).sort((a, b) => a.startDate !== b.startDate ? a.startDate.localeCompare(b.startDate) : a.startSlot - b.startSlot);
+
+  // Grupos: mesma ordem/secções que no ecrã (grupos vazios não são impressos).
+  const printSections = groupPieces(planned, false);
+  const printHeaders = printSections.some(s => s.group);
+  const printRows = [];
+  for (const s of printSections) {
+    if (printHeaders) printRows.push({ header: s });
+    for (const p of s.pieces) printRows.push({ piece: p });
+  }
+
+  for (const entry of printRows) {
+    if (entry.header) {
+      const gtr = document.createElement('tr');
+      gtr.className = 'gantt-print-group';
+      const gtd = document.createElement('td');
+      gtd.colSpan = 2;
+      gtd.textContent = entry.header.group ? entry.header.group.name : 'Sem grupo';
+      gtr.appendChild(gtd);
+      tbody.appendChild(gtr);
+      continue;
+    }
+    const piece = entry.piece;
+    const itemLabel = piece.code || piece.description || 'Tarefa';
+    const pStartDate = parseDate(piece.startDate);
+
+    const tr = document.createElement('tr');
+    tr.className = 'gantt-print-row';
+
+    const cell = document.createElement('td');
+    const pieceInProgress = isPieceInProgress(piece, printView);
+    cell.className = 'piece-cell'
+      + (pieceInProgress ? ' in-progress' : '');
+    const showPct = printView === 'real' && !piece.completedAt && pieceInProgress;
+    const pctSuffix = showPct ? ` <span class="piece-cell-pct">(${pieceProgress(piece)}%)</span>` : '';
+    if (piece.indicative) {
+      cell.innerHTML = `<div class="piece-cell-block">
+        <span class="piece-cell-label"><span>${escapeHtml(itemLabel)}${pctSuffix}</span></span>
+        <span class="piece-cell-time"><span class="t-start">${escapeHtml(fmtDateShort(pStartDate))}</span></span>
+      </div>`;
+    } else {
+      const pEndInfo = pieceEnd(piece);
+      const hideHours = !INCLUDE_HOURS_IN_PRINT;
+      const startStr = hideHours
+        ? fmtDateShort(pStartDate)
+        : `${fmtDateShort(pStartDate)} ${formatHourLabel(piece.startSlot)}`;
+      const endStr = hideHours
+        ? fmtDateShort(pEndInfo.date)
+        : `${fmtDateShort(pEndInfo.date)} ${formatHourLabel(pEndInfo.slot)}`;
+      const durStr = formatDuration(piece.durationSlots);
+      cell.innerHTML = `<div class="piece-cell-block">
+        <span class="piece-cell-label"><span>${escapeHtml(itemLabel)}${pctSuffix}</span></span>
+        <span class="piece-cell-time"><span class="t-start">${escapeHtml(startStr)}</span><span class="t-arrow">→</span><span class="t-end">${escapeHtml(endStr)}</span></span>
+        <span class="piece-cell-duration">(${escapeHtml(durStr)})</span>
+      </div>`;
+    }
+    tr.appendChild(cell);
+
+    const rowTd = document.createElement('td');
+    rowTd.className = 'row-area-cell';
+
+    const row = document.createElement('div');
+    row.className = 'row-area';
+    row.style.width = totalPx + U;
+
+    for (let i = 0; i < visibleDays.length; i++) {
+      const dd = visibleDays[i];
+      const dayXp = i * dayPx;
+      if (dd.getDay() === 6) {
+        const lockX = slotToXWithinDay(SAT_LOCK_SLOT) * slotPx;
+        const lockBg = document.createElement('div');
+        lockBg.className = 'weekend-bg';
+        lockBg.style.left = (dayXp + lockX) + U;
+        lockBg.style.width = (dayPx - lockX) + U;
+        row.appendChild(lockBg);
+      }
+      const daySep = document.createElement('div');
+      daySep.className = 'day-sep';
+      daySep.style.left = (dayXp + dayPx) + U;
+      row.appendChild(daySep);
+    }
+    for (let i = 0; i < visibleDays.length; i++) {
+      const dayXp = i * dayPx;
+      let xAcc = 0;
+      for (const col of WORK_DAY_COLS) {
+        xAcc += COL_UNITS * slotPx;
+        if (xAcc < dayPx) {
+          const sep = document.createElement('div');
+          sep.className = 'hour-sep';
+          sep.style.left = (dayXp + xAcc) + U;
+          row.appendChild(sep);
+        }
+      }
+    }
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    const tIdx = visIdx(today);
+    if (tIdx !== -1) {
+      const s = currentSlot(new Date()) || 0;
+      const xWithin = slotToXWithinDay(s) * slotPx;
+      const todayLine = document.createElement('div');
+      todayLine.className = 'today-line';
+      todayLine.style.left = (tIdx * dayPx + xWithin) + U;
+      row.appendChild(todayLine);
+    }
+
+    const pStart = parseDate(piece.startDate);
+    const pEnd = pieceEnd(piece);
+    if (pEnd.date >= firstDay && pStart <= lastDay) {
+      const x0 = startX(pStart, piece.startSlot);
+      const x1 = endX(pEnd.date, pEnd.slot);
+      if (x1 > x0) {
+        const el = createPieceElement(piece, x0, x1 - x0, U);
+        row.appendChild(el);
+      }
+    }
+    rowTd.appendChild(row);
+    tr.appendChild(rowTd);
+    tbody.appendChild(tr);
+  }
+
+  tbl.appendChild(tbody);
+  tableWrap.appendChild(tbl);
+}
+
+/* ============================================================
+   WIRING — TABS, BUTTONS, MODAL CLOSE
+   ============================================================ */
+function applyView(view) {
+  state.ui.view = view;
+  $$('.topbar .tab').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  const isGantt = (view === 'planned' || view === 'real');
+  $('#view-gantt').hidden = !isGantt;
+  $('#view-completed').hidden = view !== 'completed';
+  $('#view-progress').hidden = view !== 'progress';
+  $('#toolbar-gantt').style.display = isGantt ? '' : 'none';
+  // No Gantt Real: criação de tarefas e por planear são acções "planeamento" — esconde a linha inteira para não deixar gap.
+  $('#btn-new-piece').hidden = (view === 'real');
+  $('#btn-unplanned').hidden = (view === 'real');
+  $('#toolbar-row-create').hidden = (view === 'real');
+  if (isGantt) renderGantt();
+  else if (view === 'completed') renderCompleted();
+  else if (view === 'progress') renderProgress();
+}
+function onTabsClick(e) {
+  const view = e.target.dataset.view; if (!view) return;
+  applyView(view);
+  saveState();
+}
+$('#view-tabs').addEventListener('click', onTabsClick);
+$('#view-tabs-right').addEventListener('click', onTabsClick);
+
+$('#btn-new-piece').addEventListener('click', () => openPieceModal(null));
+$('#btn-unplanned').addEventListener('click', openUnplannedModal);
+$('#btn-groups').addEventListener('click', openGroupsModal);
+
+function getUnplannedPieces() {
+  return state.pieces.filter(p => !p.startDate && !p.completedAt);
+}
+function updateUnplannedBadge() {
+  const n = getUnplannedPieces().length;
+  const badge = $('#unplanned-badge');
+  if (!badge) return;
+  badge.textContent = n;
+  badge.hidden = n === 0;
+}
+function openUnplannedModal() {
+  $('#unplanned-filter').value = '';
+  renderUnplannedList();
+  $('#modal-unplanned').hidden = false;
+}
+function renderUnplannedList() {
+  const filter = ($('#unplanned-filter').value || '').toLowerCase().trim();
+  const items = getUnplannedPieces().filter(p => {
+    if (!filter) return true;
+    const text = (p.code || '').toLowerCase();
+    return text.includes(filter);
+  });
+  const list = $('#unplanned-list');
+  list.innerHTML = '';
+  if (items.length === 0) {
+    list.innerHTML = '<div class="unplanned-empty">Sem tarefas por planear.</div>';
+    return;
+  }
+  for (const p of items) {
+    const item = document.createElement('div');
+    item.className = 'unplanned-item';
+    const dur = formatDuration(p.durationSlots);
+    item.innerHTML = `
+      <div class="up-info">
+        <div class="up-title">${escapeHtml(p.code || 'Tarefa')}</div>
+        <div class="up-meta">${groupNameOf(p) ? 'Grupo: <b>' + escapeHtml(groupNameOf(p)) + '</b>  ·  ' : ''}Duração: ${escapeHtml(dur)}${p.notes ? '  ·  ' + escapeHtml(p.notes) : ''}</div>
+      </div>
+      <div class="up-actions">
+        <button data-act="edit">Editar</button>
+        <button data-act="delete" class="danger">Apagar</button>
+      </div>
+    `;
+    item.querySelector('[data-act="edit"]').addEventListener('click', () => {
+      openPieceModal(p.id);
+    });
+    item.querySelector('[data-act="delete"]').addEventListener('click', () => {
+      if (!confirm(`Apagar a tarefa "${p.code || 'sem nome'}"?`)) return;
+      pushHistory();
+      state.pieces = state.pieces.filter(x => x.id !== p.id);
+      saveState();
+      renderUnplannedList();
+      updateUnplannedBadge();
+    });
+    list.appendChild(item);
+  }
+}
+$('#unplanned-filter').addEventListener('input', renderUnplannedList);
+$('#btn-print').addEventListener('click', openPrintModal);
+$('#btn-summary').addEventListener('click', openSummaryModal);
+$('#btn-today').addEventListener('click', scrollToToday);
+
+function scrollToPiece(piece) {
+  const f = fieldsForView(piece, currentView());
+  if (!f.startDate) return;
+  const { start } = ganttRange();
+  const slotPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--slot-px')) || 22;
+  const dayPx = dayWidthUnits() * slotPx;
+  const pStart = parseDate(f.startDate);
+  const dayIdx = diffDays(start, pStart);
+  const xWithin = slotToXWithinDay(f.startSlot) * slotPx;
+  const pieceX = dayIdx * dayPx + xWithin;
+  const scrollEl = $('#gantt-scroll');
+  const personColPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--person-col')) || 200;
+  const target = pieceX - personColPx - 50;
+  scrollEl.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+}
+
+function scrollToToday() {
+  const { start, end } = ganttRange();
+  const today = new Date(); today.setHours(0,0,0,0);
+  if (today < start || today > end) {
+    showToast('Hoje está fora do intervalo visível');
+    return;
+  }
+  const slotPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--slot-px')) || 22;
+  const dayPx = dayWidthUnits() * slotPx;
+  const dayIdx = diffDays(start, today);
+  const now = new Date();
+  const slot = currentSlot(now);
+  const xWithin = slot === null ? 0 : slotToXWithinDay(slot) * slotPx;
+  const todayX = dayIdx * dayPx + xWithin;
+  const scrollEl = $('#gantt-scroll');
+  const personColPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--person-col')) || 200;
+  const target = todayX - (scrollEl.clientWidth - personColPx) / 2;
+  scrollEl.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+}
+
+/* ============================================================
+   RESUMO — lista plana de tarefas
+   ============================================================ */
+function openSummaryModal() {
+  const planned = state.pieces.filter(p => p.startDate)
+    .sort((a, b) => a.startDate !== b.startDate ? a.startDate.localeCompare(b.startDate) : a.startSlot - b.startSlot);
+  if (!planned.length) { alert('Sem tarefas planeadas.'); return; }
+  const listEl = $('#summary-people-list');
+  listEl.innerHTML = '';
+  for (const piece of planned) {
+    const itemLabel = piece.code || piece.description || 'Tarefa';
+    const dateStr = fmtDateShort(parseDate(piece.startDate));
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #eee;';
+    row.innerHTML = `
+      <input type="checkbox" class="sum-piece-cb" value="${escapeHtml(piece.id)}" checked style="cursor:pointer;flex-shrink:0;">
+      <span style="flex:1;">${escapeHtml(itemLabel)}</span>
+      <span style="color:#9ca3af;flex-shrink:0;">${escapeHtml(dateStr)}</span>
+    `;
+    listEl.appendChild(row);
+  }
+  if (listEl.lastElementChild) listEl.lastElementChild.style.borderBottom = 'none';
+  $('#modal-summary').hidden = false;
+}
+
+function setAllSummaryChecks(value) {
+  document.querySelectorAll('#summary-people-list .sum-piece-cb').forEach(cb => { cb.checked = value; });
+}
+$('#summary-pick-all').addEventListener('click', () => setAllSummaryChecks(true));
+$('#summary-pick-none').addEventListener('click', () => setAllSummaryChecks(false));
+$('#summary-go').addEventListener('click', () => {
+  const includeIndicative = $('#summary-include-indicative').checked;
+  let picked = Array.from(document.querySelectorAll('.sum-piece-cb:checked')).map(cb => cb.value);
+  if (!includeIndicative) {
+    const indicativeIds = new Set(state.pieces.filter(p => p.indicative).map(p => p.id));
+    picked = picked.filter(id => !indicativeIds.has(id));
+  }
+  if (picked.length === 0) { alert('Selecione pelo menos uma tarefa.'); return; }
+  $('#modal-summary').hidden = true;
+  doSummary(picked);
+});
+$('#btn-settings').addEventListener('click', (e) => {
+  if (cogMenu) { closeCogMenu(); return; }
+  openCogMenu(e.currentTarget);
+});
+
+/* ============================================================
+   COGWHEEL DROPDOWN
+   ============================================================ */
+let cogMenu = null;
+let cogMenuOutside = null;
+function openCogMenu(anchor) {
+  closeCogMenu();
+  cogMenu = document.createElement('div');
+  cogMenu.className = 'cog-menu';
+  cogMenu.innerHTML = `
+    <button data-act="projects">← Todos os projetos</button>
+    <button data-act="props">Propriedades do projeto</button>
+  `;
+  document.body.appendChild(cogMenu);
+  const rect = anchor.getBoundingClientRect();
+  const cmRect = cogMenu.getBoundingClientRect();
+  let left = rect.right - cmRect.width;
+  let top = rect.bottom + 4;
+  if (left < 8) left = 8;
+  if (top + cmRect.height > window.innerHeight - 8) top = Math.max(8, rect.top - cmRect.height - 4);
+  cogMenu.style.left = left + 'px';
+  cogMenu.style.top = top + 'px';
+  cogMenu.addEventListener('click', (e) => {
+    const btn = e.target.closest('button'); if (!btn) return;
+    closeCogMenu();
+    if (btn.dataset.act === 'projects') location.href = 'index.html';
+    if (btn.dataset.act === 'props') location.href = 'index.html?props=' + encodeURIComponent(PROJECT_ID);  });
+  cogMenuOutside = (e) => {
+    if (cogMenu && !cogMenu.contains(e.target) && e.target.id !== 'btn-settings') closeCogMenu();
+  };
+  setTimeout(() => document.addEventListener('mousedown', cogMenuOutside), 0);
+}
+function closeCogMenu() {
+  if (cogMenu) { cogMenu.remove(); cogMenu = null; }
+  if (cogMenuOutside) { document.removeEventListener('mousedown', cogMenuOutside); cogMenuOutside = null; }
+}
+
+function doSummary(selectedPieceIds) {
+  const view = currentView(); // 'planned' ou 'real' — determina que valores mostrar
+  const viewLabel = view === 'real' ? 'Real' : 'Planeamento';
+  const viewColor = view === 'real' ? PIECE_COLOR_REAL : PIECE_COLOR;
+  const idSet = selectedPieceIds ? new Set(selectedPieceIds) : null;
+  const pieces = state.pieces
+    .filter(p =>
+      fieldsForView(p, view).startDate
+      && (idSet ? idSet.has(p.id) : true)
+      // No resumo "Real" entram concluídas + em curso; no "Planeamento" entram todas.
+      && (view === 'real' ? (!!p.completedAt || isPieceInProgress(p, 'real')) : true)
+    )
+    .sort((a, b) => {
+      const fa = fieldsForView(a, view), fb = fieldsForView(b, view);
+      if (fa.startDate !== fb.startDate) return fa.startDate.localeCompare(fb.startDate);
+      return (fa.startSlot || 0) - (fb.startSlot || 0);
+    });
+  if (!pieces.length) {
+    alert(view === 'real'
+      ? 'Sem tarefas concluídas para incluir no resumo real.'
+      : 'Sem tarefas para a seleção.');
+    return;
+  }
+
+  let minDate = null, maxDate = null;
+  for (const p of pieces) {
+    const f = fieldsForView(p, view);
+    const s = parseDate(f.startDate);
+    const e = pieceEnd(p, view).date;
+    if (!minDate || s < minDate) minDate = s;
+    if (!maxDate || e > maxDate) maxDate = e;
+  }
+
+  const title = `Resumo ${getProjectLabel()} — ${viewLabel}`;
+  const now = new Date();
+  const emission = `Emitido: ${fmtDatePt(now)} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const period = `Período ${view === 'real' ? 'real' : 'planeado'}: ${fmtDatePt(minDate)} a ${fmtDatePt(maxDate)}`;
+
+  // Tabela única — thead repete-se em cada página, cada tarefa numa <tr> sem quebrar.
+  const hideHours = !INCLUDE_HOURS_IN_PRINT;
+  let html = `
+    <h1 class="summary-title">${escapeHtml(title)}</h1>
+    <div class="summary-meta">
+      <span class="summary-view-badge" style="background:${viewColor};">${escapeHtml(viewLabel)}</span>
+      ${escapeHtml(emission)}  ·  ${escapeHtml(period)}
+    </div>
+    <table class="summary-table">
+      <thead>
+        <tr><th style="background:${viewColor}">${escapeHtml(getProjectLabel())} — ${viewLabel} — ${pieces.length} tarefa(s)</th></tr>
+      </thead>
+      <tbody>`;
+
+  let taskNum = 0;
+  for (const piece of pieces) {
+    taskNum++;
+    const itemLabel = piece.code || piece.description || 'Tarefa';
+    const f = fieldsForView(piece, view);
+    const doneClass = piece.completedAt ? ' summary-task-done' : '';
+    const progressClass = (!piece.completedAt && isPieceInProgress(piece, view))
+      ? ' summary-task-progress' : '';
+    if (piece.indicative) {
+      html += `<tr class="summary-task${doneClass}${progressClass}"><td>
+        <div class="t-item"><span class="t-num">${taskNum}</span>${escapeHtml(itemLabel)}</div>
+        <div class="t-time">${escapeHtml(fmtDateShort(parseDate(f.startDate)))}</div>
+      </td></tr>`;
+      continue;
+    }
+    const pEnd = pieceEnd(piece, view);
+    const startStr = hideHours
+      ? fmtDateShort(parseDate(f.startDate))
+      : `${fmtDateShort(parseDate(f.startDate))} ${formatHourLabel(f.startSlot)}`;
+    const endStr = hideHours
+      ? fmtDateShort(pEnd.date)
+      : `${fmtDateShort(pEnd.date)} ${formatHourLabel(pEnd.slot)}`;
+    const durStr = formatDuration(f.durationSlots);
+
+    html += `<tr class="summary-task${doneClass}${progressClass}"><td>
+      <div class="t-item"><span class="t-num">${taskNum}</span>${escapeHtml(itemLabel)}</div>
+      <div class="t-time">${escapeHtml(startStr)}<span class="t-arrow">→</span>${escapeHtml(endStr)}</div>
+      <div class="t-duration">(${escapeHtml(durStr)})</div>
+    </td></tr>`;
+  }
+  html += `</tbody></table>`;
+
+  $('#summary-view').innerHTML = html;
+  $('#summary-view').hidden = false;
+
+  const styleEl = document.createElement('style');
+  styleEl.id = 'summary-page-style';
+  // @page com margem aplicada a todas as páginas (não só à primeira).
+  styleEl.textContent = '@page { size: A4 landscape; margin: 15mm; }';
+  document.head.appendChild(styleEl);
+
+  document.body.classList.add('printing-summary');
+  const originalTitle = document.title;
+  document.title = ' ';
+
+  setTimeout(() => {
+    window.print();
+    document.title = originalTitle;
+    document.body.classList.remove('printing-summary');
+    $('#summary-view').hidden = true;
+    $('#summary-view').innerHTML = '';
+    const s = document.getElementById('summary-page-style');
+    if (s) s.remove();
+  }, 100);
+}
+
+/* ============================================================
+   EXTRAÇÃO / DOCUMENTO OFICIAL (A4 landscape)
+   ============================================================ */
+function buildExtractHtml(includeIndicative) {
+  const pieces = state.pieces
+    .filter(p => p.plannedStartDate && (includeIndicative || !p.indicative))
+    .sort((a, b) => {
+      const aDate = a.startDate || a.plannedStartDate;
+      const bDate = b.startDate || b.plannedStartDate;
+      if (aDate !== bDate) return aDate.localeCompare(bDate);
+      return (a.startSlot || 0) - (b.startSlot || 0);
+    });
+
+  const now = new Date();
+  const projectLabel = getProjectLabel();
+  const emission = `Emitido em ${fmtDatePt(now)} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+  let rowsHtml = '';
+  if (pieces.length === 0) {
+    rowsHtml = `<tr><td colspan="7" style="text-align:center;padding:10mm;color:#6b7280;font-style:italic;">Sem tarefas planeadas neste projeto.</td></tr>`;
+  } else {
+    for (const piece of pieces) {
+      const label = piece.code || piece.description || 'Tarefa';
+      const isCompleted = !!piece.completedAt;
+      const inProgress = !isCompleted && isPieceInProgress(piece, 'real');
+      const statusHtml = isCompleted
+        ? '<div class="ex-task-status done">Concluída</div>'
+        : (inProgress ? `<div class="ex-task-status progress">EM CURSO — ${pieceProgress(piece)}%</div>` : '');
+
+      let plannedHtml, realHtml, dDuration = '', dStart = '', dEnd = '', rowClass = '';
+      if (inProgress) rowClass = 'ex-row-progress';
+
+      // O "Real" só é apresentado depois da tarefa estar concluída — até lá os valores reais
+      // são apenas cópias do planeado pré-preenchidas e não devem ser apresentados.
+      if (piece.indicative) {
+        plannedHtml =
+          `<div class="ex-date">${escapeHtml(fmtDateShort(parseDate(piece.plannedStartDate)))}</div>` +
+          `<div class="ex-tag">Indicativa</div>`;
+        if (isCompleted) {
+          realHtml =
+            `<div class="ex-date">${escapeHtml(fmtDateShort(parseDate(piece.startDate || piece.plannedStartDate)))}</div>` +
+            `<div class="ex-tag">Indicativa</div>`;
+          const pD = parseDate(piece.plannedStartDate);
+          const rD = parseDate(piece.startDate || piece.plannedStartDate);
+          const dayDelta = workingDaysDelta(pD, rD);
+          const dayStr = formatDaysSigned(dayDelta);
+          dStart = dayStr;
+          dEnd = dayStr;
+          if (dayDelta > 0) rowClass = 'ex-row-over';
+          else rowClass = 'ex-row-under';
+        } else {
+          realHtml = '<span class="ex-empty">—</span>';
+        }
+      } else {
+        const pStart = `${fmtDateShort(parseDate(piece.plannedStartDate))} ${formatHourLabel(piece.plannedStartSlot || 0)}`;
+        const pEnd = pieceEnd(piece, 'planned');
+        const pEndStr = `${fmtDateShort(pEnd.date)} ${formatHourLabel(pEnd.slot)}`;
+        const pDurStr = formatDuration(piece.plannedDurationSlots || piece.durationSlots || 0);
+        plannedHtml =
+          `<div class="ex-range">${escapeHtml(pStart)} → ${escapeHtml(pEndStr)}</div>` +
+          `<div class="ex-dur">${escapeHtml(pDurStr)}</div>`;
+
+        if (isCompleted) {
+          const rStart = `${fmtDateShort(parseDate(piece.startDate))} ${formatHourLabel(piece.startSlot || 0)}`;
+          const rEnd = pieceEnd(piece, 'real');
+          const rEndStr = `${fmtDateShort(rEnd.date)} ${formatHourLabel(rEnd.slot)}`;
+          const rDurStr = formatDuration(piece.durationSlots || 0);
+          realHtml =
+            `<div class="ex-range">${escapeHtml(rStart)} → ${escapeHtml(rEndStr)}</div>` +
+            `<div class="ex-dur">${escapeHtml(rDurStr)}</div>`;
+
+          const durDelta = (piece.durationSlots || 0) - (piece.plannedDurationSlots || 0);
+          dDuration = formatSlotsSigned(durDelta);
+          if (durDelta > 0) rowClass = 'ex-row-over';
+          else rowClass = 'ex-row-under';
+
+          const plannedStart = { date: parseDate(piece.plannedStartDate), slot: piece.plannedStartSlot || 0 };
+          const realStart = { date: parseDate(piece.startDate), slot: piece.startSlot || 0 };
+          dStart = formatSlotsSigned(workSlotsDelta(plannedStart, realStart));
+          dEnd = formatSlotsSigned(workSlotsDelta(pEnd, rEnd));
+        } else {
+          realHtml = '<span class="ex-empty">—</span>';
+        }
+      }
+
+      const notesRaw = (piece.notes || '').trim();
+      const notesHtml = notesRaw
+        ? escapeHtml(notesRaw)
+        : '<span class="ex-empty">—</span>';
+
+      const cellNum = (v) => v ? escapeHtml(v) : '<span class="ex-empty">—</span>';
+
+      rowsHtml += `
+        <tr class="${rowClass}">
+          <td class="ex-cell-task">
+            <div class="ex-task-label">${escapeHtml(label)}</div>
+            ${statusHtml}
+          </td>
+          <td>${plannedHtml}</td>
+          <td>${realHtml}</td>
+          <td class="ex-num">${cellNum(dDuration)}</td>
+          <td class="ex-num">${cellNum(dStart)}</td>
+          <td class="ex-num">${cellNum(dEnd)}</td>
+          <td class="ex-notes-cell">${notesHtml}</td>
+        </tr>`;
+    }
+  }
+
+  return `
+    <div class="export-header">
+      <div class="export-header-right">
+        <h1 class="export-title">Gestão de Projeto <span class="export-title-sep">|</span> ${escapeHtml(projectLabel)}</h1>
+        <div class="export-subtitle">${escapeHtml(emission)} <span class="export-subtitle-sep">|</span> ${pieces.length} tarefa(s)</div>
+        <div class="export-legend">
+          <span><span class="lg-swatch lg-over"></span>Duração real superior ao planeado</span>
+          <span><span class="lg-swatch lg-under"></span>Duração real inferior ao planeado</span>
+          <span><span class="lg-swatch lg-progress"></span>Tarefa em curso</span>
+        </div>
+      </div>
+      <div class="export-logo-wrap">
+        <img src="adira-logo.png" alt="Adira">
+      </div>
+    </div>
+    <table class="export-table">
+      <colgroup>
+        <col style="width:13%;">
+        <col style="width:15%;">
+        <col style="width:15%;">
+        <col style="width:8%;">
+        <col style="width:8%;">
+        <col style="width:8%;">
+        <col style="width:33%;">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Tarefa</th>
+          <th>Planeado</th>
+          <th>Real</th>
+          <th>Desvio Duração</th>
+          <th>Desvio Início</th>
+          <th>Desvio Fim</th>
+          <th>Notas</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  `;
+}
+
+function printExtractDocument(includeIndicative) {
+  const view = $('#export-view');
+  view.innerHTML = buildExtractHtml(includeIndicative);
+  view.hidden = false;
+
+  const styleEl = document.createElement('style');
+  styleEl.id = 'export-page-style';
+  // margin no @page garante o mesmo offset em TODAS as páginas (não só na primeira).
+  // O @bottom-right injeta "Página X de Y" no rodapé de cada folha automaticamente.
+  styleEl.textContent = `
+    @page {
+      size: A4 landscape;
+      margin: 12mm 14mm 16mm 14mm;
+      @bottom-right {
+        content: "Página " counter(page) " de " counter(pages);
+        font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+        font-size: 8pt;
+        color: #6b7280;
+        margin-top: 4mm;
+      }
+    }
+  `;
+  document.head.appendChild(styleEl);
+
+  document.body.classList.add('printing-export');
+  const originalTitle = document.title;
+  document.title = ' ';
+
+  setTimeout(() => {
+    window.print();
+    document.title = originalTitle;
+    document.body.classList.remove('printing-export');
+    view.hidden = true;
+    view.innerHTML = '';
+    const s = document.getElementById('export-page-style');
+    if (s) s.remove();
+  }, 100);
+}
+
+$('#progress-export').addEventListener('click', () => {
+  $('#extract-include-indicative').checked = true;
+  $('#modal-extract').hidden = false;
+});
+$('#extract-go').addEventListener('click', () => {
+  const includeIndicative = $('#extract-include-indicative').checked;
+  $('#modal-extract').hidden = true;
+  printExtractDocument(includeIndicative);
+});
+
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => {
+  b.closest('.modal-backdrop').hidden = true;
+}));
+document.querySelectorAll('.modal-backdrop').forEach(bd => bd.addEventListener('click', (e) => {
+  if (e.target === bd) bd.hidden = true;
+}));
+
+/* Sincroniza o texto do nome do projeto no brand (e re-renderiza se há vistas abertas). */
+function refreshProjectLabel() {
+  const label = getProjectLabel();
+  const el = $('#brand-project');
+  if (el && el.textContent !== label) el.textContent = label;
+  document.title = label ? (BASE_TITLE + ' ' + label) : BASE_TITLE;
+  // Re-render para actualizar títulos (concluídos, etc.)
+  if (state.ui.view === 'completed') renderCompleted();
+}
+
+/* Edição inline do nome do projeto. */
+function wireBrandEditing() {
+  const el = $('#brand-project');
+  if (!el) return;
+  refreshProjectLabel();
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+    if (e.key === 'Escape') { el.textContent = getProjectLabel(); el.blur(); }
+  });
+  el.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    document.execCommand('insertText', false, text.replace(/\s+/g, ' '));
+  });
+  el.addEventListener('blur', () => {
+    const newName = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    el.textContent = newName;
+    if (newName !== state.projectName) {
+      pushHistory();
+      state.projectName = newName;
+      saveState();
+      refreshProjectLabel();
+    } else {
+      // sincroniza o título se ficou vazio igual ao que já estava
+      refreshProjectLabel();
+    }
+  });
+}
+
+/* ============================================================
+   INIT — login → carregar projeto da cloud → desenhar
+   ============================================================ */
+function showFatal(msg) {
+  document.querySelector('.app').innerHTML = `
+    <div style="max-width:520px;margin:80px auto;background:#fff;border:1px solid #d8dde5;border-radius:8px;padding:28px;text-align:center;">
+      <div style="font-size:16px;font-weight:700;color:#1a2840;margin-bottom:8px;">Não foi possível abrir o projeto</div>
+      <div style="color:#6b7280;margin-bottom:18px;">${escapeHtml(msg)}</div>
+      <a href="index.html" style="color:#2b6cb0;font-weight:600;">← Voltar aos projetos</a>
+    </div>`;
+}
+
+(async () => {
+  try {
+    await loadState();
+  } catch (e) {
+    showFatal(e.message || String(e));
+    return;
+  }
+  wireBrandEditing();
+  if (!['planned','real','progress','completed'].includes(state.ui.view)) state.ui.view = 'planned';
+  applyView(state.ui.view);
+  updateUnplannedBadge();
+  setSaveStatus('ok', DB.mode === 'local' ? 'Gravado (modo local)' : 'Gravado');
+
+  setInterval(() => {
+    if (state.ui.view === 'planned' || state.ui.view === 'real') renderGantt();
+    else if (state.ui.view === 'progress') renderProgress();
+  }, 60 * 1000);
+})();
+
+</script>
+</body>
+</html>
